@@ -3,10 +3,10 @@ from __future__ import annotations
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base_class import Base, TimestampMixin
+from app.db.base_class import AuditMixin, Base, TimestampMixin
 
 
-class Attribute(Base, TimestampMixin):
+class Attribute(Base, TimestampMixin, AuditMixin):
     """Org-level reusable variant attribute, e.g. Color or Size."""
 
     __tablename__ = "attributes"
@@ -26,7 +26,7 @@ class Attribute(Base, TimestampMixin):
     )
 
 
-class AttributeValue(Base, TimestampMixin):
+class AttributeValue(Base, TimestampMixin, AuditMixin):
     """A value of an attribute, e.g. Red / Blue for Color."""
 
     __tablename__ = "attribute_values"

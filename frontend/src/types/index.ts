@@ -1,3 +1,4 @@
+export type { Activity, ActivityActor } from "./activity";
 export type { ApiEnvelope, ApiError } from "./api";
 export type { AccessToken, Me } from "./auth";
 export type { Category, CategorySummary } from "./category";

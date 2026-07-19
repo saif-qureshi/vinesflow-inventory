@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.pagination import paginate_cursor
+from app.modules.activities.service import ActivityService
 from app.modules.attributes.models import Attribute, AttributeValue
 from app.modules.categories.models import Category
 from app.modules.media.service import MediaService
@@ -23,6 +24,7 @@ class ProductService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.media = MediaService(db)
+        self.activity = ActivityService(db)
 
     def list(self, org_id: int, query: ProductListQuery) -> tuple[list[Product], str | None, bool]:
         stmt = select(Product).where(Product.org_id == org_id)
@@ -137,6 +139,7 @@ class ProductService:
             attachable_id=product.id,
             media=payload.media,
         )
+        self.activity.record(org_id, "created", "product", product.name, entity_id=product.id)
         self.db.commit()
         self.db.refresh(product)
         return product
@@ -166,12 +169,14 @@ class ProductService:
                 attachable_id=product_id,
                 media=payload.media,
             )
+        self.activity.record(org_id, "updated", "product", product.name, entity_id=product.id)
         self.db.commit()
         self.db.refresh(product)
         return product
 
     def delete(self, org_id: int, product_id: int) -> None:
         product = self.get(org_id, product_id)
+        self.activity.record(org_id, "deleted", "product", product.name, entity_id=product_id)
         self.media.delete_for(PRODUCT_MEDIA_TYPE, product_id)
         self.db.delete(product)
         self.db.commit()

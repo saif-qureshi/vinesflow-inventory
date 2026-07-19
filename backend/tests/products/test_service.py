@@ -48,6 +48,30 @@ def test_goods_require_uom(db):
         ProductService(db).create(org_id, ProductCreate(name="Item", nature="good"))
 
 
+def test_audit_fields_from_session_actor(db):
+    from app.modules.products.schemas import ProductUpdate
+
+    user = User(email="auditor@test.io", hashed_password=hash_password("password123"))
+    db.add(user)
+    db.flush()
+    org = OrgService(db).create_org_with_owner(owner=user, name="Acme")
+    db.flush()
+    db.info["actor_id"] = user.id
+
+    svc = ProductService(db)
+    product = svc.create(org.id, ProductCreate(name="Phone", uom_id=_uom(db, org.id)))
+    assert product.created_by_id == user.id
+    assert product.updated_by_id == user.id
+
+    other = User(email="editor@test.io", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.flush()
+    db.info["actor_id"] = other.id
+    svc.update(org.id, product.id, ProductUpdate(sale_price=5))
+    assert product.created_by_id == user.id
+    assert product.updated_by_id == other.id
+
+
 def test_service_does_not_require_uom(db):
     org_id = _org(db)
     product = ProductService(db).create(org_id, ProductCreate(name="Consulting", nature="service"))

@@ -3,10 +3,10 @@ from __future__ import annotations
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base_class import Base, TimestampMixin
+from app.db.base_class import AuditMixin, Base, TimestampMixin
 
 
-class Uom(Base, TimestampMixin):
+class Uom(Base, TimestampMixin, AuditMixin):
     """Unit of measure (e.g. Kilogram / kg)."""
 
     __tablename__ = "uoms"

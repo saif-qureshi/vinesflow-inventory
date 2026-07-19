@@ -3,10 +3,10 @@ from __future__ import annotations
 from sqlalchemy import ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base_class import Base, TimestampMixin
+from app.db.base_class import AuditMixin, Base, TimestampMixin
 
 
-class MediaAsset(Base, TimestampMixin):
+class MediaAsset(Base, TimestampMixin, AuditMixin):
     """Polymorphic media table shared across entities (products now, more later).
 
     Rows are linked by (attachable_type, attachable_id); `url` points at the

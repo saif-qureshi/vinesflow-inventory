@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
-from app.db.base_class import Base, TimestampMixin
+from app.db.base_class import AuditMixin, Base, TimestampMixin
 from app.modules.attributes.models import AttributeValue
 from app.modules.categories.models import Category
 from app.modules.media.models import MediaAsset
@@ -41,7 +41,7 @@ variant_values = Table(
 )
 
 
-class Product(Base, TimestampMixin):
+class Product(Base, TimestampMixin, AuditMixin):
     __tablename__ = "products"
     __table_args__ = (UniqueConstraint("org_id", "sku", name="uq_product_org_sku"),)
 
@@ -103,7 +103,7 @@ class Product(Base, TimestampMixin):
         return [{"name": name, "options": options} for name, options in groups.items()]
 
 
-class ProductVariant(Base, TimestampMixin):
+class ProductVariant(Base, TimestampMixin, AuditMixin):
     """A concrete variant (one value per attribute) with its own SKU / pricing."""
 
     __tablename__ = "product_variants"

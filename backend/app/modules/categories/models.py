@@ -3,10 +3,10 @@ from __future__ import annotations
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base_class import Base, TimestampMixin
+from app.db.base_class import AuditMixin, Base, TimestampMixin
 
 
-class Category(Base, TimestampMixin):
+class Category(Base, TimestampMixin, AuditMixin):
     """Org-scoped product category, optionally nested under a parent."""
 
     __tablename__ = "categories"

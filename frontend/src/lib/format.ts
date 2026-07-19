@@ -1,3 +1,5 @@
+import { format, formatDistanceToNow } from "date-fns";
+
 export function formatMoney(n: number, currency = "PKR"): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -19,5 +21,10 @@ export function formatCompact(n: number, currency?: string): string {
 
 export function formatDate(value: string | Date): string {
   const d = typeof value === "string" ? new Date(value) : value;
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return format(d, "dd MMM yyyy");
+}
+
+export function timeAgo(value: string | Date): string {
+  const d = typeof value === "string" ? new Date(value) : value;
+  return formatDistanceToNow(d, { addSuffix: true });
 }

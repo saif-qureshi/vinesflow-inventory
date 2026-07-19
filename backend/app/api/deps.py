@@ -70,6 +70,7 @@ def get_current_membership(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not a member of this organization",
         )
+    db.info["actor_id"] = current_user.id
     return membership
 
 

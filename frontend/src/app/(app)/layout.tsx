@@ -23,7 +23,6 @@ import {
   BarChart3,
   Bell,
   FolderOpen,
-  History,
   LayoutDashboard,
   LogOut,
   Menu as MenuIcon,
@@ -39,6 +38,7 @@ import {
 
 import { AppFooter } from "@/components/AppFooter";
 import { QuickCreate } from "@/components/QuickCreate";
+import { RecentActivity } from "@/components/layout/RecentActivity";
 import { RequireAuth } from "@/components/RequireAuth";
 import { useAppTheme, useLogout, useSession, useSwitchOrg } from "@/hooks/useSession";
 
@@ -208,13 +208,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           {isMobile && (
             <Button type="text" icon={<MenuIcon size={ICON} />} onClick={() => setDrawerOpen(true)} />
           )}
-          <Popover trigger="click" placement="bottomLeft" title="Recent activity" content={
-            <div className="w-64">
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No recent activity yet" />
-            </div>
-          }>
-            <Button type="text" icon={<History size={ICON} />} />
-          </Popover>
+          <RecentActivity />
           <Input
             prefix={<Search size={16} className="text-gray-400" />}
             suffix={
