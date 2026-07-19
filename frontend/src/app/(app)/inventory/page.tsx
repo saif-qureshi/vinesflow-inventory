@@ -68,7 +68,7 @@ export default function InventoryPage() {
     {
       title: "Type",
       key: "type",
-      render: (_, it) => <Tag className="capitalize">{it.type === "variable" ? "Variants" : "Single"}</Tag>,
+      render: (_, it) => (it.is_variant ? <Tag color="geekblue">Variant</Tag> : <Tag>Item</Tag>),
     },
     {
       title: "On hand",
@@ -110,12 +110,11 @@ export default function InventoryPage() {
   const toolbar = (
     <div className="flex items-center gap-3">
       <Select
-        value={filters.location_id ?? null}
-        onChange={(v) => patch({ location_id: v })}
-        options={[
-          { value: null, label: "All warehouses" },
-          ...whList.map((w) => ({ value: w.id, label: w.name })),
-        ]}
+        value={filters.location_id ?? undefined}
+        onChange={(v) => patch({ location_id: v ?? null })}
+        allowClear
+        placeholder="All warehouses"
+        options={whList.map((w) => ({ value: w.id, label: w.name }))}
         className="!w-48"
       />
       <Checkbox

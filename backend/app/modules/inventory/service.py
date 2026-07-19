@@ -17,12 +17,10 @@ from app.modules.inventory.schemas import (
     ReasonCreate,
     StockAdjustInput,
     StockByLocation,
-    StockByVariant,
-    StockLevelRow,
     StockTransferInput,
 )
 from app.modules.locations.models import Location
-from app.modules.products.models import Product, ProductVariant
+from app.modules.products.models import Product
 
 _ZERO = Decimal("0")
 
@@ -77,12 +75,18 @@ class InventoryService:
         self.db.delete(reason)
         self.db.commit()
 
-    def _product(self, org_id: int, product_id: int) -> Product:
+    def _validate(self, org_id: int, product_id: int, location_id: int) -> Product:
         product = self.db.scalar(
             select(Product).where(Product.id == product_id, Product.org_id == org_id)
         )
         if product is None:
-            raise NotFoundError("Product not found")
+            raise NotFoundError("Item not found")
+        if product.type == "variable":
+            raise BadRequestError("Stock is tracked on the individual variants, not the group")
+        if self.db.scalar(
+            select(Location.id).where(Location.id == location_id, Location.org_id == org_id)
+        ) is None:
+            raise NotFoundError("Location not found")
         return product
 
     def _validate_location(self, org_id: int, location_id: int) -> None:
@@ -91,57 +95,40 @@ class InventoryService:
         ) is None:
             raise NotFoundError("Location not found")
 
-    def _validate(self, org_id: int, product_id: int, variant_id: int | None, location_id: int) -> Product:
-        product = self._product(org_id, product_id)
-        self._validate_location(org_id, location_id)
-        if product.type == "variable" and variant_id is None:
-            raise BadRequestError("A variant is required for a variable product")
-        if product.type == "single" and variant_id is not None:
-            raise BadRequestError("A single product has no variants")
-        if variant_id is not None and self.db.scalar(
-            select(ProductVariant.id).where(
-                ProductVariant.id == variant_id, ProductVariant.product_id == product_id
+    def _level(self, org_id: int, product_id: int, location_id: int) -> StockLevel:
+        level = self.db.scalar(
+            select(StockLevel).where(
+                StockLevel.org_id == org_id,
+                StockLevel.product_id == product_id,
+                StockLevel.location_id == location_id,
             )
-        ) is None:
-            raise NotFoundError("Variant not found")
-        return product
-
-    def _level(self, org_id: int, product_id: int, variant_id: int | None, location_id: int) -> StockLevel:
-        stmt = select(StockLevel).where(
-            StockLevel.org_id == org_id,
-            StockLevel.product_id == product_id,
-            StockLevel.location_id == location_id,
-            StockLevel.variant_id.is_(None) if variant_id is None else StockLevel.variant_id == variant_id,
         )
-        level = self.db.scalar(stmt)
         if level is None:
             level = StockLevel(
-                org_id=org_id, product_id=product_id, variant_id=variant_id,
-                location_id=location_id, quantity=_ZERO,
+                org_id=org_id, product_id=product_id, location_id=location_id, quantity=_ZERO
             )
             self.db.add(level)
             self.db.flush()
         return level
 
-    def _on_hand_at(self, org_id: int, product_id: int, variant_id: int | None, location_id: int) -> Decimal:
+    def _on_hand_at(self, org_id: int, product_id: int, location_id: int) -> Decimal:
         qty = self.db.scalar(
             select(StockLevel.quantity).where(
                 StockLevel.org_id == org_id,
                 StockLevel.product_id == product_id,
                 StockLevel.location_id == location_id,
-                StockLevel.variant_id.is_(None) if variant_id is None else StockLevel.variant_id == variant_id,
             )
         )
         return qty if qty is not None else _ZERO
 
-    def _apply(self, org_id, product_id, variant_id, location_id, qty_delta, type_, note, reason=None) -> None:
+    def _apply(self, org_id, product_id, location_id, qty_delta, type_, note, reason=None) -> None:
         self.db.add(
             StockMovement(
-                org_id=org_id, product_id=product_id, variant_id=variant_id,
-                location_id=location_id, qty_delta=qty_delta, type=type_, note=note, reason=reason,
+                org_id=org_id, product_id=product_id, location_id=location_id,
+                qty_delta=qty_delta, type=type_, note=note, reason=reason,
             )
         )
-        level = self._level(org_id, product_id, variant_id, location_id)
+        level = self._level(org_id, product_id, location_id)
         level.quantity = level.quantity + qty_delta
 
     def _record(self, org_id, action, product, delta, location_id) -> None:
@@ -151,18 +138,18 @@ class InventoryService:
         )
 
     def adjust(self, org_id: int, payload: StockAdjustInput) -> None:
-        product = self._validate(org_id, payload.product_id, payload.variant_id, payload.location_id)
+        product = self._validate(org_id, payload.product_id, payload.location_id)
         self._apply(
-            org_id, payload.product_id, payload.variant_id, payload.location_id,
+            org_id, payload.product_id, payload.location_id,
             payload.qty_delta, "adjustment", payload.note, reason=payload.reason,
         )
         self._record(org_id, "adjusted", product, payload.qty_delta, payload.location_id)
         self.db.commit()
 
     def set_opening(self, org_id: int, payload: OpeningStockInput) -> None:
-        product = self._validate(org_id, payload.product_id, payload.variant_id, payload.location_id)
+        product = self._validate(org_id, payload.product_id, payload.location_id)
         self._apply(
-            org_id, payload.product_id, payload.variant_id, payload.location_id,
+            org_id, payload.product_id, payload.location_id,
             payload.quantity, "opening", payload.note,
         )
         self._record(org_id, "set opening", product, payload.quantity, payload.location_id)
@@ -171,31 +158,27 @@ class InventoryService:
     def transfer(self, org_id: int, payload: StockTransferInput) -> None:
         if payload.from_location_id == payload.to_location_id:
             raise BadRequestError("Source and destination locations must differ")
-        product = self._validate(org_id, payload.product_id, payload.variant_id, payload.from_location_id)
+        product = self._validate(org_id, payload.product_id, payload.from_location_id)
         self._validate_location(org_id, payload.to_location_id)
-        available = self._on_hand_at(org_id, payload.product_id, payload.variant_id, payload.from_location_id)
+        available = self._on_hand_at(org_id, payload.product_id, payload.from_location_id)
         if available < payload.quantity:
             raise BadRequestError("Not enough stock at the source location")
-        self._apply(org_id, payload.product_id, payload.variant_id, payload.from_location_id, -payload.quantity, "transfer", payload.note)
-        self._apply(org_id, payload.product_id, payload.variant_id, payload.to_location_id, payload.quantity, "transfer", payload.note)
+        self._apply(org_id, payload.product_id, payload.from_location_id, -payload.quantity, "transfer", payload.note)
+        self._apply(org_id, payload.product_id, payload.to_location_id, payload.quantity, "transfer", payload.note)
         self._record(org_id, "transferred", product, payload.quantity, payload.to_location_id)
         self.db.commit()
 
     def item_stock(self, org_id: int, product_id: int) -> ItemStockRead:
-        self._product(org_id, product_id)
         rows = self.db.execute(
-            select(StockLevel.location_id, StockLevel.variant_id, StockLevel.quantity).where(
+            select(StockLevel.location_id, StockLevel.quantity).where(
                 StockLevel.org_id == org_id, StockLevel.product_id == product_id
             )
         ).all()
         by_location: dict[int, Decimal] = {}
-        by_variant: dict[int, Decimal] = {}
         total = _ZERO
-        for location_id, variant_id, quantity in rows:
+        for location_id, quantity in rows:
             total += quantity
             by_location[location_id] = by_location.get(location_id, _ZERO) + quantity
-            if variant_id is not None:
-                by_variant[variant_id] = by_variant.get(variant_id, _ZERO) + quantity
         opening = self.db.scalar(
             select(func.coalesce(func.sum(StockMovement.qty_delta), 0)).where(
                 StockMovement.org_id == org_id,
@@ -210,19 +193,13 @@ class InventoryService:
             committed=committed,
             available=total - committed,
             by_location=[StockByLocation(location_id=k, quantity=v) for k, v in by_location.items()],
-            by_variant=[StockByVariant(variant_id=k, quantity=v) for k, v in by_variant.items()],
-            levels=[StockLevelRow(location_id=loc, variant_id=var, quantity=qty) for loc, var, qty in rows],
         )
 
-    def on_hand(self, org_id: int, product_id: int, variant_id: int | None, location_id: int) -> Decimal:
-        self._product(org_id, product_id)
+    def on_hand(self, org_id: int, product_id: int, location_id: int) -> Decimal:
         self._validate_location(org_id, location_id)
-        return self._on_hand_at(org_id, product_id, variant_id, location_id)
+        return self._on_hand_at(org_id, product_id, location_id)
 
-    def movements(
-        self, org_id: int, product_id: int, query
-    ) -> tuple[list[StockMovement], str | None, bool]:
-        self._product(org_id, product_id)
+    def movements(self, org_id: int, product_id: int, query) -> tuple[list[StockMovement], str | None, bool]:
         stmt = select(StockMovement).where(
             StockMovement.org_id == org_id, StockMovement.product_id == product_id
         )
@@ -242,7 +219,11 @@ class InventoryService:
             select(Product, on_hand.label("on_hand"))
             .outerjoin(levels, levels.c.product_id == Product.id)
             .options(joinedload(Product.uom))
-            .where(Product.org_id == org_id, Product.track_inventory.is_(True))
+            .where(
+                Product.org_id == org_id,
+                Product.type == "single",
+                Product.track_inventory.is_(True),
+            )
         )
         if query.search:
             like = f"%{query.search.strip()}%"
@@ -268,7 +249,7 @@ class InventoryService:
                     id=product.id,
                     name=product.name,
                     sku=product.sku,
-                    type=product.type,
+                    is_variant=product.parent_id is not None,
                     uom_symbol=product.uom.symbol if product.uom else None,
                     reorder_point=product.reorder_point,
                     on_hand=quantity,

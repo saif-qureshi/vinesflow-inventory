@@ -5,14 +5,12 @@ import { InputNumber, Select } from "antd";
 
 import { App, Form, Input, Modal } from "@/components/ui";
 import { useTransferStock } from "@/hooks/useInventory";
-import { useProduct } from "@/hooks/useProducts";
 import { apiErrorMessage } from "@/lib/api";
 import type { InventoryItem, Warehouse } from "@/types";
 
 interface FormValues {
   from_location_id: number;
   to_location_id: number;
-  variant_id?: number;
   quantity: number;
   note?: string;
 }
@@ -30,8 +28,6 @@ export function TransferStockModal({
   const [form] = Form.useForm<FormValues>();
   const transfer = useTransferStock();
   const open = !!item;
-  const isVariable = item?.type === "variable";
-  const { data: product } = useProduct(open && isVariable ? item.id : null);
 
   useEffect(() => {
     if (open) form.resetFields();
@@ -46,7 +42,6 @@ export function TransferStockModal({
     try {
       await transfer.mutateAsync({
         product_id: item.id,
-        variant_id: values.variant_id ?? null,
         from_location_id: values.from_location_id,
         to_location_id: values.to_location_id,
         quantity: values.quantity,
@@ -72,14 +67,6 @@ export function TransferStockModal({
       destroyOnHidden
     >
       <Form<FormValues> form={form} layout="vertical" onFinish={submit} className="pt-2">
-        {isVariable && (
-          <Form.Item name="variant_id" label="Variant" rules={[{ required: true, message: "Select a variant" }]}>
-            <Select
-              placeholder="Select variant"
-              options={(product?.variants ?? []).map((v) => ({ value: v.id, label: v.name }))}
-            />
-          </Form.Item>
-        )}
         <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
           <Form.Item name="from_location_id" label="From" rules={[{ required: true, message: "Select source" }]}>
             <Select options={options} placeholder="Source warehouse" />

@@ -22,7 +22,7 @@ export interface InventoryItem {
   id: number;
   name: string;
   sku: string | null;
-  type: "single" | "variable";
+  is_variant: boolean;
   uom_symbol: string | null;
   reorder_point: number | null;
   on_hand: string;
@@ -32,19 +32,12 @@ export interface InventoryItem {
 export interface StockMovement {
   id: number;
   product_id: number;
-  variant_id: number | null;
   location_id: number;
   qty_delta: string;
   type: string;
   reason: string | null;
   note: string | null;
   created_at: string;
-}
-
-export interface StockLevelRow {
-  location_id: number;
-  variant_id: number | null;
-  quantity: string;
 }
 
 export interface ItemStock {
@@ -57,8 +50,6 @@ export interface ItemStock {
   to_be_invoiced: string;
   to_be_billed: string;
   by_location: { location_id: number; quantity: string }[];
-  by_variant: { variant_id: number; quantity: string }[];
-  levels: StockLevelRow[];
 }
 
 export interface Reason {

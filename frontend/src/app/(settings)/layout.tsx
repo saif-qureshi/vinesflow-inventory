@@ -125,7 +125,7 @@ function SettingsShell({ children }: { children: React.ReactNode }) {
         className="flex items-center gap-3 border-b border-gray-200"
       >
         <Image src="/logo.svg" alt="Vineflow" width={28} height={28} priority />
-        <Divider type="vertical" className="!mx-0 !h-7" />
+        <Divider orientation="vertical" className="!mx-0 !h-7" />
         <Button icon={<ChevronLeft size={18} />} onClick={close} />
         <div className="leading-tight">
           <div className="text-sm font-semibold">All Settings</div>

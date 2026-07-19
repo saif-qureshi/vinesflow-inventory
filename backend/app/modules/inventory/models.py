@@ -33,9 +33,6 @@ class StockMovement(Base, TimestampMixin, AuditMixin):
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    variant_id: Mapped[int | None] = mapped_column(
-        ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=True
-    )
     location_id: Mapped[int] = mapped_column(
         ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
     )
@@ -59,9 +56,6 @@ class StockLevel(Base, TimestampMixin):
     )
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False
-    )
-    variant_id: Mapped[int | None] = mapped_column(
-        ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=True
     )
     location_id: Mapped[int] = mapped_column(
         ForeignKey("locations.id", ondelete="CASCADE"), nullable=False

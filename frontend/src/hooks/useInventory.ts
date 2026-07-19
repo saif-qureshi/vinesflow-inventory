@@ -52,21 +52,14 @@ export function useItemStock(productId: number | null) {
   });
 }
 
-export function useOnHand(
-  productId: number | null,
-  variantId: number | null | undefined,
-  locationId: number | null | undefined,
-) {
+export function useOnHand(productId: number | null, locationId: number | null | undefined) {
   const token = useSessionStore((s) => s.accessToken);
   const orgId = useSessionStore((s) => s.currentOrgId);
   return useQuery({
-    queryKey: ["on-hand", orgId, productId, variantId ?? null, locationId ?? null],
-    queryFn: async () => {
-      const params = new URLSearchParams({ location_id: String(locationId) });
-      if (variantId != null) params.set("variant_id", String(variantId));
-      return (await api.get<{ quantity: string }>(`/inventory/${productId}/on-hand?${params.toString()}`))
-        .data.quantity;
-    },
+    queryKey: ["on-hand", orgId, productId, locationId ?? null],
+    queryFn: async () =>
+      (await api.get<{ quantity: string }>(`/inventory/${productId}/on-hand?location_id=${locationId}`))
+        .data.quantity,
     enabled: !!token && !!orgId && !!productId && !!locationId,
   });
 }
@@ -85,7 +78,6 @@ export function useItemMovements(productId: number | null, limit = 50) {
 
 interface AdjustInput {
   product_id: number;
-  variant_id?: number | null;
   location_id: number;
   qty_delta: number;
   reason?: string | null;
@@ -94,7 +86,6 @@ interface AdjustInput {
 
 interface TransferInput {
   product_id: number;
-  variant_id?: number | null;
   from_location_id: number;
   to_location_id: number;
   quantity: number;

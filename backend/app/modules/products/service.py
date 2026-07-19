@@ -9,7 +9,7 @@ from app.modules.activities.service import ActivityService
 from app.modules.attributes.models import Attribute, AttributeValue
 from app.modules.categories.models import Category
 from app.modules.media.service import MediaService
-from app.modules.products.models import PRODUCT_MEDIA_TYPE, Product, ProductVariant
+from app.modules.products.models import PRODUCT_MEDIA_TYPE, Product
 from app.modules.products.schemas import (
     ProductCreate,
     ProductListQuery,
@@ -27,7 +27,7 @@ class ProductService:
         self.activity = ActivityService(db)
 
     def list(self, org_id: int, query: ProductListQuery) -> tuple[list[Product], str | None, bool]:
-        stmt = select(Product).where(Product.org_id == org_id)
+        stmt = select(Product).where(Product.org_id == org_id, Product.parent_id.is_(None))
         if query.search:
             like = f"%{query.search.strip()}%"
             stmt = stmt.where(or_(Product.name.ilike(like), Product.sku.ilike(like)))
@@ -106,22 +106,28 @@ class ProductService:
         product.attribute_values = list(mapping.values())
 
         existing = {v.id: v for v in product.variants}
-        reconciled: list[ProductVariant] = []
+        reconciled: list[Product] = []
         for i, v in enumerate(variants):
             values = [mapping[(a, val)] for a, val in v.options.items() if (a, val) in mapping]
-            name = v.name or " / ".join(v.options.values())
-            variant = existing.get(v.id) if v.id is not None else None
-            if variant is None:
-                variant = ProductVariant(org_id=org_id)
-            variant.name = name
-            variant.sku = v.sku
-            variant.barcode = v.barcode
-            variant.sale_price = v.sale_price
-            variant.purchase_price = v.purchase_price
-            variant.is_active = v.is_active
-            variant.sort_order = i
-            variant.values = values
-            reconciled.append(variant)
+            combo = " / ".join(v.options.values())
+            name = v.name or f"{product.name} / {combo}" if combo else product.name
+            child = existing.get(v.id) if v.id is not None else None
+            if child is None:
+                child = Product(org_id=org_id, parent_id=product.id, type="single")
+            child.name = name
+            child.nature = product.nature
+            child.category_id = product.category_id
+            child.uom_id = product.uom_id
+            child.track_inventory = product.track_inventory
+            child.reorder_point = product.reorder_point
+            child.sku = v.sku
+            child.barcode = v.barcode
+            child.sale_price = v.sale_price
+            child.purchase_price = v.purchase_price
+            child.is_active = v.is_active
+            child.sort_order = i
+            child.values = values
+            reconciled.append(child)
         product.variants = reconciled
 
     def create(self, org_id: int, payload: ProductCreate) -> Product:

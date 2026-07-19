@@ -187,7 +187,7 @@ def test_update_preserves_variant_ids(db):
 
 
 def test_update_adds_and_removes_variants(db):
-    from app.modules.products.models import ProductVariant
+    from app.modules.products.models import Product
     from app.modules.products.schemas import (
         ProductUpdate,
         VariantAttributeInput,
@@ -225,4 +225,4 @@ def test_update_adds_and_removes_variants(db):
     values = {v.values[0].value: v.id for v in product.variants}
     assert set(values) == {"Red", "Green"}
     assert values["Red"] == red_id
-    assert db.query(ProductVariant).filter_by(product_id=product.id).count() == 2
+    assert db.query(Product).filter_by(parent_id=product.id).count() == 2

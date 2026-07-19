@@ -256,12 +256,12 @@ export default function ViewItemPage() {
                 {
                   key: "warehouses",
                   label: "Warehouses",
-                  children: <ItemWarehouses product={p} stock={stock} warehouses={warehouses ?? []} />,
+                  children: <ItemWarehouses stock={stock} warehouses={warehouses ?? []} />,
                 },
                 {
                   key: "transactions",
                   label: "Transactions",
-                  children: <ItemTransactions product={p} warehouses={warehouses ?? []} />,
+                  children: <ItemTransactions productId={p.id} warehouses={warehouses ?? []} />,
                 },
               ]
             : []),
@@ -276,7 +276,7 @@ export default function ViewItemPage() {
                 id: p.id,
                 name: p.name,
                 sku: p.sku,
-                type: p.type,
+                is_variant: false,
                 uom_symbol: p.uom?.symbol ?? null,
                 reorder_point: p.reorder_point,
                 on_hand: stock?.on_hand ?? "0",

@@ -32,11 +32,11 @@ product_attribute_values = Table(
     Column("attribute_value_id", ForeignKey("attribute_values.id", ondelete="CASCADE"), primary_key=True),
 )
 
-# The specific value per attribute that a variant represents.
+# The specific value per attribute a variant (a child product) represents.
 variant_values = Table(
     "variant_values",
     Base.metadata,
-    Column("variant_id", ForeignKey("product_variants.id", ondelete="CASCADE"), primary_key=True),
+    Column("product_id", ForeignKey("products.id", ondelete="CASCADE"), primary_key=True),
     Column("attribute_value_id", ForeignKey("attribute_values.id", ondelete="CASCADE"), primary_key=True),
 )
 
@@ -71,19 +71,31 @@ class Product(Base, TimestampMixin, AuditMixin):
     uom_id: Mapped[int | None] = mapped_column(
         ForeignKey("uoms.id", ondelete="SET NULL"), nullable=True
     )
+    # A variant is a child product of its "variable" group parent.
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     category: Mapped[Category | None] = relationship(lazy="selectin")
     uom: Mapped[Uom | None] = relationship(lazy="selectin")
-    # For variable products: the attribute values this product is offered in.
+    # For a group product: the attribute values it is offered in.
     attribute_values: Mapped[list[AttributeValue]] = relationship(
         secondary=product_attribute_values, lazy="selectin"
     )
-    variants: Mapped[list[ProductVariant]] = relationship(
-        back_populates="product",
+    # Child variant products of a group.
+    variants: Mapped[list[Product]] = relationship(
+        "Product",
+        back_populates="parent",
         cascade="all, delete-orphan",
-        order_by="ProductVariant.sort_order",
+        order_by="Product.sort_order",
         lazy="selectin",
     )
+    parent: Mapped[Product | None] = relationship(
+        "Product", back_populates="variants", remote_side=[id]
+    )
+    # For a variant: the specific attribute values it represents.
+    values: Mapped[list[AttributeValue]] = relationship(secondary=variant_values, lazy="selectin")
     media: Mapped[list[MediaAsset]] = relationship(
         primaryjoin=lambda: and_(
             foreign(MediaAsset.attachable_id) == Product.id,
@@ -101,27 +113,3 @@ class Product(Base, TimestampMixin, AuditMixin):
         for value in self.attribute_values:
             groups.setdefault(value.attribute.name, []).append(value.value)
         return [{"name": name, "options": options} for name, options in groups.items()]
-
-
-class ProductVariant(Base, TimestampMixin, AuditMixin):
-    """A concrete variant (one value per attribute) with its own SKU / pricing."""
-
-    __tablename__ = "product_variants"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    org_id: Mapped[int] = mapped_column(
-        ForeignKey("organizations.id", ondelete="CASCADE"), index=True, nullable=False
-    )
-    product_id: Mapped[int] = mapped_column(
-        ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False
-    )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    barcode: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    sale_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
-    purchase_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-
-    product: Mapped[Product] = relationship(back_populates="variants")
-    values: Mapped[list[AttributeValue]] = relationship(secondary=variant_values, lazy="selectin")

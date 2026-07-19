@@ -10,20 +10,14 @@ from app.core.pagination import ListQuery
 
 class StockAdjustInput(BaseModel):
     product_id: int
-    variant_id: int | None = None
     location_id: int
     qty_delta: Decimal
     reason: str | None = Field(default=None, max_length=100)
     note: str | None = Field(default=None, max_length=255)
 
 
-class OnHandRead(BaseModel):
-    quantity: Decimal
-
-
 class OpeningStockInput(BaseModel):
     product_id: int
-    variant_id: int | None = None
     location_id: int
     quantity: Decimal = Field(ge=0)
     note: str | None = Field(default=None, max_length=255)
@@ -31,11 +25,14 @@ class OpeningStockInput(BaseModel):
 
 class StockTransferInput(BaseModel):
     product_id: int
-    variant_id: int | None = None
     from_location_id: int
     to_location_id: int
     quantity: Decimal = Field(gt=0)
     note: str | None = Field(default=None, max_length=255)
+
+
+class OnHandRead(BaseModel):
+    quantity: Decimal
 
 
 class StockMovementRead(BaseModel):
@@ -43,7 +40,6 @@ class StockMovementRead(BaseModel):
 
     id: int
     product_id: int
-    variant_id: int | None = None
     location_id: int
     qty_delta: Decimal
     type: str
@@ -73,7 +69,7 @@ class InventoryItemRead(BaseModel):
     id: int
     name: str
     sku: str | None = None
-    type: str
+    is_variant: bool = False
     uom_symbol: str | None = None
     reorder_point: int | None = None
     on_hand: Decimal
@@ -82,17 +78,6 @@ class InventoryItemRead(BaseModel):
 
 class StockByLocation(BaseModel):
     location_id: int
-    quantity: Decimal
-
-
-class StockByVariant(BaseModel):
-    variant_id: int
-    quantity: Decimal
-
-
-class StockLevelRow(BaseModel):
-    location_id: int
-    variant_id: int | None = None
     quantity: Decimal
 
 
@@ -106,5 +91,3 @@ class ItemStockRead(BaseModel):
     to_be_invoiced: Decimal = Decimal("0")
     to_be_billed: Decimal = Decimal("0")
     by_location: list[StockByLocation] = Field(default_factory=list)
-    by_variant: list[StockByVariant] = Field(default_factory=list)
-    levels: list[StockLevelRow] = Field(default_factory=list)

@@ -10,7 +10,6 @@ from app.modules.orgs.models import Membership, Organization
 from app.modules.parties.models import Party
 from app.modules.products.models import (
     Product,
-    ProductVariant,
     product_attribute_values,
     variant_values,
 )

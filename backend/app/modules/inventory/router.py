@@ -103,11 +103,10 @@ def item_stock(
 def item_on_hand(
     product_id: int,
     location_id: int,
-    variant_id: int | None = None,
     membership: Membership = Depends(require_permission("inventory:read")),
     svc: InventoryService = Svc,
 ) -> OnHandRead:
-    return OnHandRead(quantity=svc.on_hand(membership.org_id, product_id, variant_id, location_id))
+    return OnHandRead(quantity=svc.on_hand(membership.org_id, product_id, location_id))
 
 
 @router.get("/{product_id}/movements", response_model=CursorPage[StockMovementRead])

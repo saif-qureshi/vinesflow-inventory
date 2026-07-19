@@ -5,14 +5,12 @@ import { InputNumber, Select } from "antd";
 
 import { App, Form, Modal, TextArea } from "@/components/ui";
 import { useAdjustStock, useOnHand } from "@/hooks/useInventory";
-import { useProduct } from "@/hooks/useProducts";
 import { useReasons } from "@/hooks/useReasons";
 import { apiErrorMessage } from "@/lib/api";
 import type { InventoryItem, Warehouse } from "@/types";
 
 interface FormValues {
   location_id: number;
-  variant_id?: number;
   qty_delta: number;
   reason?: string;
   note?: string;
@@ -37,13 +35,10 @@ export function AdjustStockModal({
   const adjust = useAdjustStock();
   const reasons = useReasons();
   const open = !!item;
-  const isVariable = item?.type === "variable";
-  const { data: product } = useProduct(open && isVariable ? item.id : null);
 
   const locationId = Form.useWatch("location_id", form);
-  const variantId = Form.useWatch("variant_id", form);
   const qtyDelta = Form.useWatch("qty_delta", form);
-  const { data: available } = useOnHand(open ? item?.id ?? null : null, variantId, locationId);
+  const { data: available } = useOnHand(open ? item?.id ?? null : null, locationId);
   const availableQty = num(available);
   const newOnHand = availableQty + num(qtyDelta);
   const uom = item?.uom_symbol ?? "";
@@ -59,7 +54,6 @@ export function AdjustStockModal({
     try {
       await adjust.mutateAsync({
         product_id: item.id,
-        variant_id: values.variant_id ?? null,
         location_id: values.location_id,
         qty_delta: values.qty_delta,
         reason: values.reason || null,
@@ -87,15 +81,6 @@ export function AdjustStockModal({
         <Form.Item name="location_id" label="Warehouse" rules={[{ required: true, message: "Select a warehouse" }]}>
           <Select options={warehouses.map((w) => ({ value: w.id, label: w.name }))} />
         </Form.Item>
-
-        {isVariable && (
-          <Form.Item name="variant_id" label="Variant" rules={[{ required: true, message: "Select a variant" }]}>
-            <Select
-              placeholder="Select variant"
-              options={(product?.variants ?? []).map((v) => ({ value: v.id, label: v.name }))}
-            />
-          </Form.Item>
-        )}
 
         <div className="mb-4 grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-3">
           <div>

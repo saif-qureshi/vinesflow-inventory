@@ -5,29 +5,23 @@ import type { ColumnsType } from "antd/es/table";
 import { Table, Tag } from "@/components/ui";
 import { useItemMovements } from "@/hooks/useInventory";
 import { formatDate } from "@/lib/format";
-import type { Product, StockMovement, Warehouse } from "@/types";
+import type { StockMovement, Warehouse } from "@/types";
 
 export function ItemTransactions({
-  product,
+  productId,
   warehouses,
 }: {
-  product: Product;
+  productId: number;
   warehouses: Warehouse[];
 }) {
-  const { data, isLoading } = useItemMovements(product.id);
+  const { data, isLoading } = useItemMovements(productId);
   const whName = (id: number) => warehouses.find((w) => w.id === id)?.name ?? `#${id}`;
-  const variantName = (id: number | null) =>
-    id == null ? "—" : product.variants.find((v) => v.id === id)?.name ?? `#${id}`;
-  const isVariable = product.type === "variable";
   const dash = <span className="text-gray-400">—</span>;
 
   const columns: ColumnsType<StockMovement> = [
     { title: "Date", key: "date", render: (_, m) => formatDate(m.created_at) },
     { title: "Type", key: "type", render: (_, m) => <Tag className="capitalize">{m.type}</Tag> },
     { title: "Warehouse", key: "wh", render: (_, m) => whName(m.location_id) },
-    ...(isVariable
-      ? [{ title: "Variant", key: "variant", render: (_: unknown, m: StockMovement) => variantName(m.variant_id) }]
-      : []),
     {
       title: "Change",
       key: "change",

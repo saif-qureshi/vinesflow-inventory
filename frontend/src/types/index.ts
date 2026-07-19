@@ -7,7 +7,6 @@ export type {
   InventoryItem,
   ItemStock,
   Reason,
-  StockLevelRow,
   StockMovement,
   Warehouse,
   WarehouseInput,

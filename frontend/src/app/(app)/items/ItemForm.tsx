@@ -224,10 +224,10 @@ export function ItemForm({ product }: { product?: Product }) {
         ) : (
           <div className="grid grid-cols-1 gap-x-6 md:grid-cols-2">
             <Form.Item name="sale_price" label="Sale Price">
-              <InputNumber className="!w-full" min={0} addonBefore={currency} placeholder="0.00" />
+              <InputNumber className="!w-full" min={0} prefix={currency} placeholder="0.00" />
             </Form.Item>
             <Form.Item name="purchase_price" label="Purchase Price">
-              <InputNumber className="!w-full" min={0} addonBefore={currency} placeholder="0.00" />
+              <InputNumber className="!w-full" min={0} prefix={currency} placeholder="0.00" />
             </Form.Item>
           </div>
         )}

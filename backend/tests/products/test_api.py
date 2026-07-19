@@ -117,7 +117,7 @@ def test_variable_product_with_variants(client, setup):
     assert len(data["variants"]) == 2
     first = data["variants"][0]
     assert first["sku"] == "TS-R-S"
-    assert first["name"] == "Red / S"
+    assert first["name"] == "T-Shirt / Red / S"
     assert {v["value"] for v in first["values"]} == {"Red", "S"}
 
 

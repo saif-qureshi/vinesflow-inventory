@@ -116,4 +116,4 @@ def test_on_hand_lookup(db):
         org_id,
         StockAdjustInput(product_id=pid, location_id=loc_id, qty_delta=Decimal(5), reason="Damaged goods"),
     )
-    assert svc.on_hand(org_id, pid, None, loc_id) == Decimal(5)
+    assert svc.on_hand(org_id, pid, loc_id) == Decimal(5)

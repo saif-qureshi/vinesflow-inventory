@@ -134,7 +134,7 @@ export function VariantsBuilder({
           <InputNumber
             className="!w-full"
             min={0}
-            addonBefore={currency}
+            prefix={currency}
             value={overrides[sig]?.sale_price ?? undefined}
             onChange={(v) => setField(sig, { sale_price: v })}
           />
@@ -150,7 +150,7 @@ export function VariantsBuilder({
           <InputNumber
             className="!w-full"
             min={0}
-            addonBefore={currency}
+            prefix={currency}
             value={overrides[sig]?.purchase_price ?? undefined}
             onChange={(v) => setField(sig, { purchase_price: v })}
           />
