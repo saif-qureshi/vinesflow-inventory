@@ -3,6 +3,10 @@
 
 export { Button, type ButtonProps } from "./Button";
 export { Input, Password, TextArea } from "./Input";
+export { AddressField } from "./AddressField";
+export { AddressAutoComplete } from "./AddressAutoComplete";
+export { MaskedInput, MASKS } from "./MaskedInput";
+export { PhoneField } from "./PhoneField";
 export { PageHeader } from "./PageHeader";
 export { DataTable } from "./DataTable";
 export { StatCard } from "./StatCard";

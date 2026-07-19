@@ -38,6 +38,13 @@ export function Uploader({
   const { message } = App.useApp();
   const [fileList, setFileList] = useState<UploadFile[]>(() => toFileList(value));
 
+  const valueKey = value.join("|");
+  const [syncedKey, setSyncedKey] = useState(valueKey);
+  if (syncedKey !== valueKey) {
+    setSyncedKey(valueKey);
+    setFileList((prev) => [...toFileList(value), ...prev.filter((f) => f.status === "uploading")]);
+  }
+
   const beforeUpload = (file: File) => {
     if (accept.includes("image") && !file.type.startsWith("image/")) {
       message.error("Only image files are allowed");

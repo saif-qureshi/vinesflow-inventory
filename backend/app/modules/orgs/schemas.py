@@ -5,6 +5,19 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.modules.users.schemas import UserRead
 
 
+class Address(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    attention: str | None = None
+    line1: str | None = None
+    line2: str | None = None
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
+    postal_code: str | None = None
+    phone: str | None = None
+
+
 class OrgCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     slug: str | None = Field(default=None, max_length=255)
@@ -17,6 +30,10 @@ class OrgUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     industry: str | None = Field(default=None, max_length=100)
+    country: str | None = Field(default=None, min_length=2, max_length=2)
+    ntn: str | None = Field(default=None, max_length=20)
+    strn: str | None = Field(default=None, max_length=20)
+    address: Address | None = None
     fiscal_year_start_month: int | None = Field(default=None, ge=1, le=12)
     logo_url: str | None = Field(default=None, max_length=1024)
     theme: str | None = Field(default=None, pattern="^(light|dark)$")
@@ -32,6 +49,10 @@ class OrgRead(BaseModel):
     slug: str
     currency: str
     industry: str | None = None
+    country: str
+    ntn: str | None = None
+    strn: str | None = None
+    address: Address | None = None
     fiscal_year_start_month: int
     logo_url: str | None = None
     theme: str

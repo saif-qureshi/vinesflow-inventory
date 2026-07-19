@@ -1,3 +1,4 @@
+import type { Address } from "./party";
 import type { RoleSummary } from "./rbac";
 import type { User } from "./user";
 
@@ -7,6 +8,10 @@ export interface Organization {
   slug: string;
   currency: string;
   industry: string | null;
+  country: string;
+  ntn: string | null;
+  strn: string | null;
+  address: Address | null;
   fiscal_year_start_month: number;
   logo_url: string | null;
   theme: "light" | "dark";

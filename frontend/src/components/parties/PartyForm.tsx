@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Checkbox, Radio, Tabs } from "antd";
 import { X } from "lucide-react";
 
-import { App, Button, Card, Form, Input, Select, TextArea, Typography } from "@/components/ui";
+import { AddressAutoComplete, App, Button, Card, Form, Input, MaskedInput, MASKS, PhoneField, Select, TextArea, Typography } from "@/components/ui";
 import { Uploader } from "@/components/ui/Uploader";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useCreateParty, useUpdateParty } from "@/hooks/useParties";
@@ -36,35 +36,6 @@ interface FormValues {
 
 const LABEL_COL = { flex: "0 0 160px" } as const;
 const WRAPPER_COL = { flex: "1 1 0" } as const;
-
-const ADDRESS_FIELDS: [keyof Address, string][] = [
-  ["attention", "Attention"],
-  ["line1", "Address line 1"],
-  ["line2", "Address line 2"],
-  ["city", "City"],
-  ["state", "State / Province"],
-  ["postal_code", "Postal code"],
-  ["country", "Country"],
-  ["phone", "Phone"],
-];
-
-function AddressFields({ prefix }: { prefix: "billing_address" | "shipping_address" }) {
-  return (
-    <div className="grid grid-cols-1 gap-x-6 md:grid-cols-2">
-      {ADDRESS_FIELDS.map(([key, label]) => (
-        <Form.Item
-          key={key}
-          name={[prefix, key]}
-          label={label}
-          labelCol={{ span: 24 }}
-          wrapperCol={{ span: 24 }}
-        >
-          <Input placeholder={label} />
-        </Form.Item>
-      ))}
-    </div>
-  );
-}
 
 function cleanAddress(a?: Address): Address | null {
   if (!a) return null;
@@ -156,21 +127,21 @@ export function PartyForm({ role, party }: { role: PartyRole; party?: Party }) {
       children: (
         <div className="grid grid-cols-1 gap-x-8 md:grid-cols-2">
           <Form.Item name="currency" label="Currency">
-            <Select showSearch options={CURRENCIES.map((c) => ({ value: c, label: c }))} />
+            <Select disabled options={CURRENCIES.map((c) => ({ value: c, label: c }))} />
           </Form.Item>
           <Form.Item name="payment_term_days" label="Payment terms">
             <Select allowClear placeholder="Select terms" options={PAYMENT_TERMS} />
           </Form.Item>
           <Form.Item name="ntn" label="NTN">
-            <Input placeholder="National Tax Number" />
+            <MaskedInput mask={MASKS.ntn} placeholder="1234567-8" />
           </Form.Item>
           {type === "individual" ? (
             <Form.Item name="cnic" label="CNIC">
-              <Input placeholder="00000-0000000-0" />
+              <MaskedInput mask={MASKS.cnic} placeholder="00000-0000000-0" />
             </Form.Item>
           ) : (
             <Form.Item name="strn" label="STRN">
-              <Input placeholder="Sales Tax Reg. Number" />
+              <MaskedInput mask={MASKS.strn} placeholder="13-digit number" />
             </Form.Item>
           )}
         </div>
@@ -183,7 +154,9 @@ export function PartyForm({ role, party }: { role: PartyRole; party?: Party }) {
         <div className="space-y-6">
           <div>
             <div className="mb-3 text-sm font-medium">Billing address</div>
-            <AddressFields prefix="billing_address" />
+            <Form.Item name="billing_address" noStyle>
+              <AddressAutoComplete />
+            </Form.Item>
           </div>
           <div>
             <div className="mb-3 flex items-center justify-between">
@@ -192,7 +165,9 @@ export function PartyForm({ role, party }: { role: PartyRole; party?: Party }) {
                 Copy billing address
               </Button>
             </div>
-            <AddressFields prefix="shipping_address" />
+            <Form.Item name="shipping_address" noStyle>
+              <AddressAutoComplete />
+            </Form.Item>
           </div>
         </div>
       ),
@@ -286,10 +261,10 @@ export function PartyForm({ role, party }: { role: PartyRole; party?: Party }) {
         <Form.Item label="Phone">
           <div className="flex gap-2">
             <Form.Item name="work_phone" noStyle>
-              <Input placeholder="Work phone" />
+              <PhoneField placeholder="Work phone" />
             </Form.Item>
             <Form.Item name="mobile" noStyle>
-              <Input placeholder="Mobile" />
+              <PhoneField placeholder="Mobile" />
             </Form.Item>
           </div>
         </Form.Item>

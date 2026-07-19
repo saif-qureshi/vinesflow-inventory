@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { ColorPicker, Switch } from "antd";
 import { Check, Loader2, Moon, Sun } from "lucide-react";
 
-import { App, Input, PageHeader, Typography } from "@/components/ui";
+import { App, PageHeader, Typography } from "@/components/ui";
+import { Uploader } from "@/components/ui/Uploader";
 import { SettingRow } from "@/components/settings/SettingRow";
 import { useCan, useSession } from "@/hooks/useSession";
 import { useUpdateOrg } from "@/hooks/useOrg";
@@ -60,29 +60,18 @@ export default function BrandingPage() {
 
       <div className="mt-2">
         <SettingRow label="Organization Logo" help="Displayed on transaction PDFs and email notifications.">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50 dark:border-slate-700 dark:bg-slate-800">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
-              ) : (
-                <Image src="/logo.svg" alt="Logo" width={48} height={48} />
-              )}
-            </div>
-            <div className="space-y-1">
-              <Input
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                onBlur={() => logoUrl !== (org?.logo_url ?? "") && patch({ logo_url: logoUrl })}
-                onPressEnter={() => patch({ logo_url: logoUrl })}
-                placeholder="https://…/logo.png"
-                disabled={!canEdit}
-                className="max-w-sm"
-              />
-              <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
-                240×240px · jpg, png, gif, svg · max 1MB. Paste a URL for now; direct upload arrives with file storage.
-              </Typography.Paragraph>
-            </div>
-          </div>
+          <Uploader
+            value={logoUrl ? [logoUrl] : []}
+            onChange={(urls) => {
+              const url = urls[0] ?? "";
+              setLogoUrl(url);
+              patch({ logo_url: url });
+            }}
+            maxCount={1}
+            accept="image/*"
+            maxSizeMB={5}
+            drag={false}
+          />
         </SettingRow>
 
         <SettingRow label="Appearance" help="Sets the app sidebar to dark or light. The rest of the app stays light.">

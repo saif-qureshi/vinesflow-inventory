@@ -141,7 +141,7 @@ function SettingsShell({ children }: { children: React.ReactNode }) {
         />
       </Header>
       <Layout>
-        <Sider width={280} theme="light" className="overflow-auto border-r border-gray-100">
+        <Sider width={230} theme="light" className="overflow-auto border-r border-gray-100">
           <Menu
             mode="inline"
             items={items}

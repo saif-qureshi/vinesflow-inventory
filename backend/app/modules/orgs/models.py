@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -22,6 +23,10 @@ class Organization(Base, TimestampMixin):
         String(3), default="PKR", server_default="PKR", nullable=False
     )
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    country: Mapped[str] = mapped_column(String(2), default="PK", server_default="PK", nullable=False)
+    ntn: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    strn: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    address: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Month the fiscal year starts (1=January … 7=July). PKR default is July–June.
     fiscal_year_start_month: Mapped[int] = mapped_column(
         default=7, server_default="7", nullable=False

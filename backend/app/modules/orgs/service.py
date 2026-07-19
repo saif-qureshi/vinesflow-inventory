@@ -79,6 +79,14 @@ class OrgService:
             org.currency = payload.currency.upper()
         if payload.industry is not None:
             org.industry = payload.industry
+        if payload.country is not None:
+            org.country = payload.country.upper()
+        if payload.ntn is not None:
+            org.ntn = payload.ntn or None
+        if payload.strn is not None:
+            org.strn = payload.strn or None
+        if "address" in payload.model_fields_set:
+            org.address = payload.address.model_dump() if payload.address else None
         if payload.fiscal_year_start_month is not None:
             org.fiscal_year_start_month = payload.fiscal_year_start_month
         if payload.logo_url is not None:

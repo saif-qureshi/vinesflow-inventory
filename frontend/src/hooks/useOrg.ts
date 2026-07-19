@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import type { Address } from "@/types";
 
 export function useUpdateOrg() {
   const qc = useQueryClient();
@@ -11,6 +12,10 @@ export function useUpdateOrg() {
       name?: string;
       currency?: string;
       industry?: string;
+      country?: string;
+      ntn?: string;
+      strn?: string;
+      address?: Address | null;
       fiscal_year_start_month?: number;
       logo_url?: string;
       theme?: "light" | "dark";
