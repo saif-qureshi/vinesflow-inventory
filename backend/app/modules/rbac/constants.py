@@ -12,7 +12,7 @@ MODULE_ACTIONS: dict[str, list[str]] = {
     "users": ["create", "read", "update", "delete"],
     "roles": ["create", "read", "update", "delete"],
     "invoices": ["create", "read", "update", "delete"],
-    "customers": ["create", "read", "update", "delete"],
+    "parties": ["create", "read", "update", "delete"],
     "products": ["create", "read", "update", "delete"],
     "payments": ["create", "read", "update", "delete"],
     "reports": ["read"],
@@ -23,7 +23,7 @@ MODULE_LABELS: dict[str, str] = {
     "users": "Users",
     "roles": "Roles & Permissions",
     "invoices": "Invoices",
-    "customers": "Customers",
+    "parties": "Customers & Vendors",
     "products": "Products",
     "payments": "Payments",
     "reports": "Reports",
@@ -65,7 +65,7 @@ DEFAULT_ROLES: dict[str, dict] = {
             {
                 "users": ["read"],
                 "invoices": ["create", "read", "update"],
-                "customers": ["create", "read", "update"],
+                "parties": ["create", "read", "update"],
                 "products": ["create", "read", "update"],
                 "payments": ["create", "read"],
                 "reports": ["read"],
@@ -78,7 +78,7 @@ DEFAULT_ROLES: dict[str, dict] = {
         "permissions": _codes_for(
             {
                 "invoices": ["read"],
-                "customers": ["read"],
+                "parties": ["read"],
                 "products": ["read"],
                 "payments": ["read"],
                 "reports": ["read"],

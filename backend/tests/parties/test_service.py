@@ -1,0 +1,111 @@
+import pytest
+
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.security import hash_password
+from app.modules.orgs.service import OrgService
+from app.modules.parties.schemas import PartyCreate, PartyListQuery, PartyUpdate
+from app.modules.parties.service import PartyService
+from app.modules.users.models import User
+
+
+def _org(db) -> int:
+    user = User(email="p@test.io", hashed_password=hash_password("password123"))
+    db.add(user)
+    db.flush()
+    org = OrgService(db).create_org_with_owner(owner=user, name="Acme")
+    db.flush()
+    return org.id
+
+
+def _names(rows):
+    return [p.name for p in rows]
+
+
+def _list(db, org_id, role=None):
+    rows, _, _ = PartyService(db).list(org_id, PartyListQuery(role=role))
+    return _names(rows)
+
+
+def test_create_requires_a_role(db):
+    org_id = _org(db)
+    with pytest.raises(BadRequestError):
+        PartyService(db).create(org_id, PartyCreate(name="Nobody"))
+
+
+def test_create_customer(db):
+    org_id = _org(db)
+    party = PartyService(db).create(org_id, PartyCreate(name="Alice", is_customer=True))
+    assert party.is_customer is True and party.is_vendor is False
+
+
+def test_single_party_both_roles(db):
+    org_id = _org(db)
+    PartyService(db).create(org_id, PartyCreate(name="Acme", is_customer=True, is_vendor=True))
+    assert "Acme" in _list(db, org_id, "customer")
+    assert "Acme" in _list(db, org_id, "vendor")
+
+
+def test_list_role_filter(db):
+    org_id = _org(db)
+    svc = PartyService(db)
+    svc.create(org_id, PartyCreate(name="OnlyCustomer", is_customer=True))
+    svc.create(org_id, PartyCreate(name="OnlyVendor", is_vendor=True))
+    assert _list(db, org_id, "customer") == ["OnlyCustomer"]
+    assert _list(db, org_id, "vendor") == ["OnlyVendor"]
+    assert set(_list(db, org_id)) == {"OnlyCustomer", "OnlyVendor"}
+
+
+def test_get_ignores_role(db):
+    org_id = _org(db)
+    party = PartyService(db).create(org_id, PartyCreate(name="Alice", is_customer=True))
+    assert PartyService(db).get(org_id, party.id).name == "Alice"
+
+
+def test_update_can_add_role(db):
+    org_id = _org(db)
+    svc = PartyService(db)
+    party = svc.create(org_id, PartyCreate(name="Acme", is_customer=True))
+    updated = svc.update(org_id, party.id, PartyUpdate(is_vendor=True, work_phone="123"))
+    assert updated.is_customer and updated.is_vendor
+    assert updated.work_phone == "123"
+
+
+def test_update_cannot_remove_all_roles(db):
+    org_id = _org(db)
+    svc = PartyService(db)
+    party = svc.create(org_id, PartyCreate(name="Acme", is_customer=True))
+    with pytest.raises(BadRequestError):
+        svc.update(org_id, party.id, PartyUpdate(is_customer=False))
+
+
+def test_update_remove_one_role_keeps_record(db):
+    org_id = _org(db)
+    svc = PartyService(db)
+    party = svc.create(org_id, PartyCreate(name="Acme", is_customer=True, is_vendor=True))
+    svc.update(org_id, party.id, PartyUpdate(is_customer=False))
+    assert "Acme" not in _list(db, org_id, "customer")
+    assert "Acme" in _list(db, org_id, "vendor")
+
+
+def test_delete_hard_removes(db):
+    org_id = _org(db)
+    svc = PartyService(db)
+    party = svc.create(org_id, PartyCreate(name="Solo", is_customer=True))
+    pid = party.id
+    svc.delete(org_id, pid)
+    with pytest.raises(NotFoundError):
+        svc.get(org_id, pid)
+
+
+def test_addresses_roundtrip(db):
+    org_id = _org(db)
+    party = PartyService(db).create(
+        org_id,
+        PartyCreate(
+            name="Acme",
+            is_customer=True,
+            billing_address={"line1": "1 Main St", "city": "Lahore", "country": "PK"},
+        ),
+    )
+    assert party.billing_address["city"] == "Lahore"
+    assert party.shipping_address is None

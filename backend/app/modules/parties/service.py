@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.pagination import paginate_cursor
+from app.modules.activities.service import ActivityService
+from app.modules.parties.models import Party
+from app.modules.parties.schemas import PartyCreate, PartyListQuery, PartyUpdate
+
+_ADDRESS_FIELDS = {"billing_address", "shipping_address"}
+
+
+def _entity_type(party: Party) -> str:
+    return "customer" if party.is_customer else "vendor"
+
+
+class PartyService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.activity = ActivityService(db)
+
+    def _require_role(self, is_customer: bool, is_vendor: bool) -> None:
+        if not is_customer and not is_vendor:
+            raise BadRequestError("A party must be a customer, a vendor, or both")
+
+    def list(self, org_id: int, query: PartyListQuery) -> tuple[list[Party], str | None, bool]:
+        stmt = select(Party).where(Party.org_id == org_id)
+        if query.role == "customer":
+            stmt = stmt.where(Party.is_customer.is_(True))
+        elif query.role == "vendor":
+            stmt = stmt.where(Party.is_vendor.is_(True))
+        if query.search:
+            like = f"%{query.search.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    Party.name.ilike(like),
+                    Party.company_name.ilike(like),
+                    Party.email.ilike(like),
+                    Party.work_phone.ilike(like),
+                    Party.mobile.ilike(like),
+                )
+            )
+        if query.type:
+            stmt = stmt.where(Party.type == query.type)
+        if query.is_active is not None:
+            stmt = stmt.where(Party.is_active == query.is_active)
+        return paginate_cursor(self.db, stmt, Party.id, query)
+
+    def get(self, org_id: int, party_id: int) -> Party:
+        party = self.db.scalar(
+            select(Party).where(Party.id == party_id, Party.org_id == org_id)
+        )
+        if party is None:
+            raise NotFoundError("Party not found")
+        return party
+
+    def create(self, org_id: int, payload: PartyCreate) -> Party:
+        self._require_role(payload.is_customer, payload.is_vendor)
+        data = payload.model_dump(exclude=_ADDRESS_FIELDS)
+        party = Party(
+            org_id=org_id,
+            billing_address=payload.billing_address.model_dump() if payload.billing_address else None,
+            shipping_address=payload.shipping_address.model_dump() if payload.shipping_address else None,
+            **data,
+        )
+        self.db.add(party)
+        self.db.flush()
+        self.activity.record(org_id, "created", _entity_type(party), party.name, entity_id=party.id)
+        self.db.commit()
+        self.db.refresh(party)
+        return party
+
+    def update(self, org_id: int, party_id: int, payload: PartyUpdate) -> Party:
+        party = self.get(org_id, party_id)
+        fields = payload.model_fields_set
+        for key, value in payload.model_dump(exclude=_ADDRESS_FIELDS, exclude_unset=True).items():
+            setattr(party, key, value)
+        self._require_role(party.is_customer, party.is_vendor)
+        if "billing_address" in fields:
+            party.billing_address = (
+                payload.billing_address.model_dump() if payload.billing_address else None
+            )
+        if "shipping_address" in fields:
+            party.shipping_address = (
+                payload.shipping_address.model_dump() if payload.shipping_address else None
+            )
+        self.activity.record(org_id, "updated", _entity_type(party), party.name, entity_id=party.id)
+        self.db.commit()
+        self.db.refresh(party)
+        return party
+
+    def delete(self, org_id: int, party_id: int) -> None:
+        party = self.get(org_id, party_id)
+        self.activity.record(org_id, "deleted", _entity_type(party), party.name, entity_id=party_id)
+        self.db.delete(party)
+        self.db.commit()

@@ -139,7 +139,7 @@ export function ItemForm({ product }: { product?: Product }) {
       layout="vertical"
       onFinish={submit}
       initialValues={{ nature: "good", type: "single", track_inventory: false }}
-      className="space-y-8 pb-24"
+      className="flex flex-col gap-6 pb-24"
     >
       <div className="flex items-center justify-between">
         <Typography.Title level={3} className="!mb-0">
