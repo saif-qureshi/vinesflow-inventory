@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.exceptions import AppError
+
 _SKIP_CONTENT_HEADERS = {"content-length", "content-type"}
 
 
@@ -69,6 +71,13 @@ async def validation_exception_handler(
     )
 
 
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    return JSONResponse(
+        error_body(exc.code, exc.message, exc.details),
+        status_code=exc.status_code,
+    )
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(
         error_body("internal_error", "Internal server error"),
@@ -77,6 +86,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 
 def register_exception_handlers(app) -> None:
+    app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)

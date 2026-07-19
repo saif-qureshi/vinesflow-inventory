@@ -1,39 +1,158 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.utils import slugify
 from app.modules.orgs.models import Membership, Organization
-from app.modules.rbac.constants import OWNER_ROLE_SLUG
-from app.modules.rbac.service import create_default_roles
+from app.modules.orgs.schemas import MemberAdd, MemberUpdate, OrgCreate, OrgUpdate
+from app.modules.rbac.constants import ALL_PERMISSION_CODES, OWNER_ROLE_SLUG
+from app.modules.rbac.models import Role
+from app.modules.rbac.service import RbacService
 from app.modules.users.models import User
 
 
-def _unique_slug(db: Session, base: str) -> str:
-    slug = slugify(base)
-    candidate = slug
-    i = 2
-    while db.scalar(select(Organization.id).where(Organization.slug == candidate)) is not None:
-        candidate = f"{slug}-{i}"
-        i += 1
-    return candidate
+class OrgService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.rbac = RbacService(db)
 
+    # --- Creation ---------------------------------------------------------
 
-def create_org_with_owner(
-    db: Session, *, owner: User, name: str, slug: str | None = None, currency: str = "PKR"
-) -> Organization:
-    """Create an org, seed its default roles, and make `owner` its super admin."""
-    org = Organization(name=name, slug=_unique_slug(db, slug or name), currency=currency)
-    db.add(org)
-    db.flush()  # assign org.id
+    def _unique_slug(self, base: str) -> str:
+        slug = slugify(base)
+        candidate = slug
+        i = 2
+        while (
+            self.db.scalar(select(Organization.id).where(Organization.slug == candidate)) is not None
+        ):
+            candidate = f"{slug}-{i}"
+            i += 1
+        return candidate
 
-    roles = create_default_roles(db, org.id)
-    owner_role = roles[OWNER_ROLE_SLUG]
+    def create_org_with_owner(
+        self, *, owner: User, name: str, slug: str | None = None, currency: str = "PKR"
+    ) -> Organization:
+        """Create an org, seed its default roles, and make `owner` its super admin."""
+        org = Organization(name=name, slug=self._unique_slug(slug or name), currency=currency)
+        self.db.add(org)
+        self.db.flush()
 
-    membership = Membership(
-        user_id=owner.id, org_id=org.id, role_id=owner_role.id, is_owner=True
-    )
-    db.add(membership)
-    db.flush()
-    return org
+        roles = self.rbac.create_default_roles(org.id)
+        owner_role = roles[OWNER_ROLE_SLUG]
+        self.db.add(
+            Membership(user_id=owner.id, org_id=org.id, role_id=owner_role.id, is_owner=True)
+        )
+        self.db.flush()
+        return org
+
+    # --- Organizations ----------------------------------------------------
+
+    def list_user_memberships(self, user_id: int) -> list[Membership]:
+        return list(
+            self.db.scalars(
+                select(Membership)
+                .where(Membership.user_id == user_id)
+                .options(joinedload(Membership.organization), joinedload(Membership.role))
+                .order_by(Membership.created_at)
+            ).all()
+        )
+
+    def create_org(self, *, owner: User, payload: OrgCreate) -> Organization:
+        org = self.create_org_with_owner(
+            owner=owner, name=payload.name, slug=payload.slug, currency=payload.currency
+        )
+        org.industry = payload.industry
+        org.fiscal_year_start_month = payload.fiscal_year_start_month
+        self.db.commit()
+        self.db.refresh(org)
+        return org
+
+    def update_org(self, *, membership: Membership, payload: OrgUpdate) -> Organization:
+        org = membership.organization
+        if payload.name is not None:
+            org.name = payload.name
+        if payload.currency is not None:
+            org.currency = payload.currency.upper()
+        if payload.industry is not None:
+            org.industry = payload.industry
+        if payload.fiscal_year_start_month is not None:
+            org.fiscal_year_start_month = payload.fiscal_year_start_month
+        if payload.logo_url is not None:
+            org.logo_url = payload.logo_url or None
+        if payload.theme is not None:
+            org.theme = payload.theme
+        if payload.accent_color is not None:
+            org.accent_color = payload.accent_color
+        if payload.keep_branding is not None:
+            org.keep_branding = payload.keep_branding
+        self.db.commit()
+        self.db.refresh(org)
+        return org
+
+    @staticmethod
+    def permissions_for(membership: Membership) -> list[str]:
+        if membership.user.is_superuser or membership.is_owner:
+            return sorted(ALL_PERMISSION_CODES)
+        return sorted({p.code for p in membership.role.permissions})
+
+    # --- Members ----------------------------------------------------------
+
+    def list_members(self, org_id: int) -> list[Membership]:
+        return list(
+            self.db.scalars(
+                select(Membership)
+                .where(Membership.org_id == org_id)
+                .options(joinedload(Membership.user), joinedload(Membership.role))
+                .order_by(Membership.created_at)
+            ).all()
+        )
+
+    def _get_org_role(self, org_id: int, role_id: int) -> Role:
+        role = self.db.scalar(select(Role).where(Role.id == role_id, Role.org_id == org_id))
+        if role is None:
+            raise NotFoundError("Role not found")
+        return role
+
+    def _get_member(self, org_id: int, membership_id: int) -> Membership:
+        member = self.db.scalar(
+            select(Membership).where(Membership.id == membership_id, Membership.org_id == org_id)
+        )
+        if member is None:
+            raise NotFoundError("Member not found")
+        return member
+
+    def add_member(self, *, org_id: int, payload: MemberAdd) -> Membership:
+        role = self._get_org_role(org_id, payload.role_id)
+        user = self.db.scalar(select(User).where(User.email == payload.email.lower()))
+        if user is None:
+            raise NotFoundError("No registered user with that email. They must sign up first.")
+        if self.db.scalar(
+            select(Membership).where(Membership.org_id == org_id, Membership.user_id == user.id)
+        ):
+            raise ConflictError("User is already a member")
+        member = Membership(user_id=user.id, org_id=org_id, role_id=role.id, is_owner=False)
+        self.db.add(member)
+        self.db.commit()
+        self.db.refresh(member)
+        return member
+
+    def update_member_role(
+        self, *, org_id: int, membership_id: int, payload: MemberUpdate
+    ) -> Membership:
+        member = self._get_member(org_id, membership_id)
+        if member.is_owner:
+            raise ConflictError("Cannot change the owner's role")
+        role = self._get_org_role(org_id, payload.role_id)
+        member.role_id = role.id
+        self.db.commit()
+        self.db.refresh(member)
+        return member
+
+    def remove_member(self, *, org_id: int, membership_id: int) -> None:
+        member = self._get_member(org_id, membership_id)
+        if member.is_owner:
+            raise ConflictError("Cannot remove the org owner")
+        self.db.delete(member)
+        self.db.commit()

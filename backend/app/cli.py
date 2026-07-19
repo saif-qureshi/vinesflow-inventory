@@ -8,9 +8,9 @@ from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.modules.auth.models import RefreshSession
 from app.modules.orgs.models import Membership, Organization
-from app.modules.orgs.service import create_org_with_owner
+from app.modules.orgs.service import OrgService
 from app.modules.rbac.models import Role
-from app.modules.rbac.service import resolve_permissions, seed_permissions
+from app.modules.rbac.service import RbacService
 from app.modules.users.models import User
 
 app = typer.Typer(no_args_is_help=True, help="Vineflow backend management CLI")
@@ -64,7 +64,7 @@ def users_create(
         db.add(user)
         db.flush()
         if org:
-            created = create_org_with_owner(db, owner=user, name=org)
+            created = OrgService(db).create_org_with_owner(owner=user, name=org)
             typer.echo(f"  org: {created.name} (slug={created.slug})")
         db.commit()
         typer.secho(f"Created user {user.email} (id={user.id}, superuser={superuser})", fg=typer.colors.GREEN)
@@ -116,7 +116,7 @@ def orgs_create(name: str, owner_email: str):
     db = SessionLocal()
     try:
         owner = _get_user(db, owner_email)
-        org = create_org_with_owner(db, owner=owner, name=name)
+        org = OrgService(db).create_org_with_owner(owner=owner, name=name)
         db.commit()
         typer.secho(f"Created org {org.name} (slug={org.slug}) owned by {owner.email}", fg=typer.colors.GREEN)
     finally:
@@ -186,7 +186,7 @@ def roles_grant(org: str, role_slug: str, permission_codes: list[str]):
             typer.secho("Role not found", fg=typer.colors.RED)
             raise typer.Exit(1)
         existing = {p.code for p in role.permissions}
-        for perm in resolve_permissions(db, list(permission_codes)):
+        for perm in RbacService(db).resolve_permissions(list(permission_codes)):
             if perm.code not in existing:
                 role.permissions.append(perm)
         db.commit()
@@ -199,7 +199,7 @@ def roles_grant(org: str, role_slug: str, permission_codes: list[str]):
 def db_seed():
     db = SessionLocal()
     try:
-        seed_permissions(db)
+        RbacService(db).seed_permissions()
         db.commit()
         typer.secho("Permission catalog seeded", fg=typer.colors.GREEN)
     finally:

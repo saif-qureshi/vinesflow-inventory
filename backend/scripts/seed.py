@@ -10,8 +10,8 @@ from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.modules.orgs.service import create_org_with_owner
-from app.modules.rbac.service import seed_permissions
+from app.modules.orgs.service import OrgService
+from app.modules.rbac.service import RbacService
 from app.modules.users.models import User
 
 DEMO_EMAIL = "admin@vineflow.app"
@@ -22,7 +22,7 @@ DEMO_ORG = "Demo Company"
 def main() -> None:
     db = SessionLocal()
     try:
-        seed_permissions(db)
+        RbacService(db).seed_permissions()
         db.commit()
         print("✓ Permission catalog seeded")
 
@@ -35,7 +35,7 @@ def main() -> None:
             )
             db.add(user)
             db.flush()
-            create_org_with_owner(db, owner=user, name=DEMO_ORG)
+            OrgService(db).create_org_with_owner(owner=user, name=DEMO_ORG)
             db.commit()
             print(f"✓ Demo user created: {DEMO_EMAIL} / {DEMO_PASSWORD}")
         else:
