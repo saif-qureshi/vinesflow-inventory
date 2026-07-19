@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
@@ -10,6 +10,21 @@ interface ActivityPage {
   items: Activity[];
   next_cursor: string | null;
   has_more: boolean;
+}
+
+export function useEntityActivities(entityType: string, entityId: number | null) {
+  const token = useSessionStore((s) => s.accessToken);
+  const orgId = useSessionStore((s) => s.currentOrgId);
+  return useQuery({
+    queryKey: ["entity-activities", orgId, entityType, entityId],
+    queryFn: async () =>
+      (
+        await api.get<ActivityPage>(
+          `/activities?entity_type=${entityType}&entity_id=${entityId}&limit=50`,
+        )
+      ).data.items,
+    enabled: !!token && !!orgId && !!entityId,
+  });
 }
 
 export function useActivities(limit = 15) {

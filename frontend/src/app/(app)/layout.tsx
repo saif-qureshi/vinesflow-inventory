@@ -50,7 +50,15 @@ const COLLAPSED = 72;
 const NAV: MenuProps["items"] = [
   { key: "/dashboard", icon: <LayoutDashboard size={ICON} />, label: "Dashboard" },
   { key: "/items", icon: <Package size={ICON} />, label: "Items" },
-  { key: "/inventory", icon: <Warehouse size={ICON} />, label: "Inventory" },
+  {
+    key: "inventory",
+    icon: <Warehouse size={ICON} />,
+    label: "Inventory",
+    children: [
+      { key: "/inventory", label: "Stock" },
+      { key: "/inventory/warehouses", label: "Warehouses" },
+    ],
+  },
   {
     key: "sales",
     icon: <ShoppingCart size={ICON} />,
@@ -105,6 +113,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const derivedOpen = useMemo(() => {
+    if (pathname.startsWith("/inventory")) return ["inventory"];
     if (pathname.startsWith("/sales")) return ["sales"];
     if (pathname.startsWith("/purchases")) return ["purchases"];
     return [];

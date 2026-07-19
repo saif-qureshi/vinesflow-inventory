@@ -14,6 +14,7 @@ MODULE_ACTIONS: dict[str, list[str]] = {
     "invoices": ["create", "read", "update", "delete"],
     "parties": ["create", "read", "update", "delete"],
     "products": ["create", "read", "update", "delete"],
+    "inventory": ["create", "read", "update", "delete"],
     "payments": ["create", "read", "update", "delete"],
     "reports": ["read"],
 }
@@ -25,6 +26,7 @@ MODULE_LABELS: dict[str, str] = {
     "invoices": "Invoices",
     "parties": "Customers & Vendors",
     "products": "Products",
+    "inventory": "Inventory",
     "payments": "Payments",
     "reports": "Reports",
 }
@@ -67,6 +69,7 @@ DEFAULT_ROLES: dict[str, dict] = {
                 "invoices": ["create", "read", "update"],
                 "parties": ["create", "read", "update"],
                 "products": ["create", "read", "update"],
+                "inventory": ["create", "read", "update"],
                 "payments": ["create", "read"],
                 "reports": ["read"],
             }
@@ -80,6 +83,7 @@ DEFAULT_ROLES: dict[str, dict] = {
                 "invoices": ["read"],
                 "parties": ["read"],
                 "products": ["read"],
+                "inventory": ["read"],
                 "payments": ["read"],
                 "reports": ["read"],
             }

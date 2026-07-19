@@ -1,0 +1,100 @@
+"use client";
+
+import { useEffect } from "react";
+import { InputNumber, Select } from "antd";
+
+import { App, Form, Input, Modal } from "@/components/ui";
+import { useTransferStock } from "@/hooks/useInventory";
+import { useProduct } from "@/hooks/useProducts";
+import { apiErrorMessage } from "@/lib/api";
+import type { InventoryItem, Warehouse } from "@/types";
+
+interface FormValues {
+  from_location_id: number;
+  to_location_id: number;
+  variant_id?: number;
+  quantity: number;
+  note?: string;
+}
+
+export function TransferStockModal({
+  item,
+  warehouses,
+  onClose,
+}: {
+  item: InventoryItem | null;
+  warehouses: Warehouse[];
+  onClose: () => void;
+}) {
+  const { message } = App.useApp();
+  const [form] = Form.useForm<FormValues>();
+  const transfer = useTransferStock();
+  const open = !!item;
+  const isVariable = item?.type === "variable";
+  const { data: product } = useProduct(open && isVariable ? item.id : null);
+
+  useEffect(() => {
+    if (open) form.resetFields();
+  }, [open, form]);
+
+  const submit = async (values: FormValues) => {
+    if (!item) return;
+    if (values.from_location_id === values.to_location_id) {
+      message.error("Source and destination must differ");
+      return;
+    }
+    try {
+      await transfer.mutateAsync({
+        product_id: item.id,
+        variant_id: values.variant_id ?? null,
+        from_location_id: values.from_location_id,
+        to_location_id: values.to_location_id,
+        quantity: values.quantity,
+        note: values.note || null,
+      });
+      message.success("Stock transferred");
+      onClose();
+    } catch (err) {
+      message.error(apiErrorMessage(err));
+    }
+  };
+
+  const options = warehouses.map((w) => ({ value: w.id, label: w.name }));
+
+  return (
+    <Modal
+      title={`Transfer stock — ${item?.name ?? ""}`}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      okText="Transfer"
+      confirmLoading={transfer.isPending}
+      destroyOnHidden
+    >
+      <Form<FormValues> form={form} layout="vertical" onFinish={submit} className="pt-2">
+        {isVariable && (
+          <Form.Item name="variant_id" label="Variant" rules={[{ required: true, message: "Select a variant" }]}>
+            <Select
+              placeholder="Select variant"
+              options={(product?.variants ?? []).map((v) => ({ value: v.id, label: v.name }))}
+            />
+          </Form.Item>
+        )}
+        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
+          <Form.Item name="from_location_id" label="From" rules={[{ required: true, message: "Select source" }]}>
+            <Select options={options} placeholder="Source warehouse" />
+          </Form.Item>
+          <Form.Item name="to_location_id" label="To" rules={[{ required: true, message: "Select destination" }]}>
+            <Select options={options} placeholder="Destination warehouse" />
+          </Form.Item>
+        </div>
+        <Form.Item name="quantity" label="Quantity" rules={[{ required: true, message: "Enter a quantity" }]}>
+          <InputNumber className="!w-full" min={0.001} placeholder="e.g. 5" />
+        </Form.Item>
+        <Form.Item name="note" label="Note">
+          <Input placeholder="Reason (optional)" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}

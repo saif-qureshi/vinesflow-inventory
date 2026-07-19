@@ -1,17 +1,24 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Descriptions, Image, Spin } from "antd";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Descriptions, Image, Spin, Tabs } from "antd";
+import { ArrowLeft, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import { App, Button, Card, Popconfirm, Table, Tag, Typography } from "@/components/ui";
+import { AdjustStockModal } from "@/components/inventory/AdjustStockModal";
+import { ItemHistory } from "@/components/inventory/ItemHistory";
+import { ItemTransactions } from "@/components/inventory/ItemTransactions";
+import { ItemWarehouses } from "@/components/inventory/ItemWarehouses";
+import { StockOverview } from "@/components/inventory/StockOverview";
 import { ItemSalesChart } from "../ItemSalesChart";
 import { useCan } from "@/hooks/useSession";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useItemStock } from "@/hooks/useInventory";
+import { useWarehouses } from "@/hooks/useWarehouses";
 import { useDeleteProduct, useProduct } from "@/hooks/useProducts";
 import { apiErrorMessage } from "@/lib/api";
-import type { ProductVariant } from "@/types";
+import type { InventoryItem, ProductVariant } from "@/types";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -30,6 +37,9 @@ export default function ViewItemPage() {
   const can = useCan();
   const del = useDeleteProduct();
   const { data: p, isLoading } = useProduct(Number(id));
+  const { data: stock } = useItemStock(p?.track_inventory ? Number(id) : null);
+  const { data: warehouses } = useWarehouses();
+  const [adjustOpen, setAdjustOpen] = useState(false);
 
   if (isLoading || !p) {
     return (
@@ -80,18 +90,26 @@ export default function ViewItemPage() {
   ];
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="flex flex-col gap-8 pb-10">
       <div className="flex items-start justify-between">
-        <div>
-          <Typography.Title level={3} className="!mb-1">
-            {p.name}
-          </Typography.Title>
-          <div className="flex flex-wrap gap-1">
-            <Tag color={p.nature === "service" ? "purple" : "blue"} className="capitalize">
-              {p.nature}
-            </Tag>
-            <Tag className="capitalize">{p.type === "variable" ? "Has variants" : "Single item"}</Tag>
-            {p.is_active ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>}
+        <div className="flex items-start gap-2">
+          <Button
+            type="text"
+            icon={<ArrowLeft size={18} />}
+            onClick={() => router.push("/items")}
+            className="!mt-0.5"
+          />
+          <div>
+            <Typography.Title level={3} className="!mb-1">
+              {p.name}
+            </Typography.Title>
+            <div className="flex flex-wrap gap-1">
+              <Tag color={p.nature === "service" ? "purple" : "blue"} className="capitalize">
+                {p.nature}
+              </Tag>
+              <Tag className="capitalize">{p.type === "variable" ? "Has variants" : "Single item"}</Tag>
+              {p.is_active ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -113,12 +131,18 @@ export default function ViewItemPage() {
               </Button>
             </Popconfirm>
           )}
-          <Button type="text" icon={<X size={18} />} onClick={() => router.push("/items")} />
         </div>
       </div>
 
+      <Tabs
+        items={[
+          {
+            key: "overview",
+            label: "Overview",
+            children: (
+              <div className="flex flex-col gap-6 pt-2">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+        <div className="flex flex-col gap-6 lg:col-span-2">
           <Card title="Primary Details" className="border-gray-100">
             <Descriptions column={{ xs: 1, md: 2 }} colon={false} size="small">
               <Descriptions.Item label="Category">
@@ -167,7 +191,7 @@ export default function ViewItemPage() {
           )}
         </div>
 
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           <Card title="Images" className="border-gray-100">
             {p.media.length ? (
               <Image.PreviewGroup>
@@ -187,22 +211,82 @@ export default function ViewItemPage() {
             )}
           </Card>
 
-          <Card title="Inventory" className="border-gray-100">
-            <Descriptions column={1} colon={false} size="small">
-              <Descriptions.Item label="Track inventory">
-                {p.track_inventory ? <Tag color="green">Enabled</Tag> : <Tag>Disabled</Tag>}
-              </Descriptions.Item>
-              <Descriptions.Item label="Reorder point">
-                {p.reorder_point != null ? p.reorder_point : dash}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
+          {p.track_inventory ? (
+            <Card
+              title="Stock"
+              className="border-gray-100"
+              extra={
+                can("inventory:update") ? (
+                  <Button size="small" icon={<SlidersHorizontal size={14} />} onClick={() => setAdjustOpen(true)}>
+                    Adjust
+                  </Button>
+                ) : undefined
+              }
+            >
+              <StockOverview
+                stock={stock}
+                uom={p.uom?.symbol ?? ""}
+                reorderPoint={p.reorder_point}
+                warehouses={warehouses ?? []}
+              />
+            </Card>
+          ) : (
+            <Card title="Inventory" className="border-gray-100">
+              <Descriptions column={1} colon={false} size="small">
+                <Descriptions.Item label="Track inventory">
+                  <Tag>Disabled</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Reorder point">
+                  {p.reorder_point != null ? p.reorder_point : dash}
+                </Descriptions.Item>
+              </Descriptions>
+            </Card>
+          )}
         </div>
       </div>
 
-      <Card title="Sales Summary" className="border-gray-100">
-        <ItemSalesChart />
-      </Card>
+                <Card title="Sales Summary" className="border-gray-100">
+                  <ItemSalesChart />
+                </Card>
+              </div>
+            ),
+          },
+          ...(p.track_inventory
+            ? [
+                {
+                  key: "warehouses",
+                  label: "Warehouses",
+                  children: <ItemWarehouses product={p} stock={stock} warehouses={warehouses ?? []} />,
+                },
+                {
+                  key: "transactions",
+                  label: "Transactions",
+                  children: <ItemTransactions product={p} warehouses={warehouses ?? []} />,
+                },
+              ]
+            : []),
+          { key: "history", label: "History", children: <ItemHistory productId={p.id} /> },
+        ]}
+      />
+
+      <AdjustStockModal
+        item={
+          adjustOpen
+            ? ({
+                id: p.id,
+                name: p.name,
+                sku: p.sku,
+                type: p.type,
+                uom_symbol: p.uom?.symbol ?? null,
+                reorder_point: p.reorder_point,
+                on_hand: stock?.on_hand ?? "0",
+                is_low: false,
+              } as InventoryItem)
+            : null
+        }
+        warehouses={warehouses ?? []}
+        onClose={() => setAdjustOpen(false)}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ from app.core.pagination import ListQuery
 
 class ActivityListQuery(ListQuery):
     entity_type: str | None = None
+    entity_id: int | None = None
 
 
 class ActorSummary(BaseModel):

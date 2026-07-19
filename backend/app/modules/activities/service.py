@@ -48,6 +48,8 @@ class ActivityService:
         stmt = select(Activity).where(Activity.org_id == org_id)
         if query.entity_type:
             stmt = stmt.where(Activity.entity_type == query.entity_type)
+        if query.entity_id is not None:
+            stmt = stmt.where(Activity.entity_id == query.entity_id)
         if query.search:
             stmt = stmt.where(Activity.summary.ilike(f"%{query.search.strip()}%"))
         return paginate_cursor(self.db, stmt, Activity.id, query)
