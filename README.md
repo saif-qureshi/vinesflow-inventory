@@ -1,6 +1,6 @@
 # Vineflow
 
-Multi-organization invoicing / ERP platform. **Phase 1** delivers authentication, organizations, team members, and role-based permissions; the Items, Sales, Purchases, and Reports modules plug into the same permission model in later phases.
+Multi-organization invoicing and inventory platform. A shared core — authentication, organizations, team members, role-based permissions, and an activity log — underpins the business modules (Items, Customers &amp; Vendors, Inventory, Sales, Purchases, Reports), which all plug into the same permission model.
 
 ## Stack
 
@@ -23,7 +23,7 @@ Multi-organization invoicing / ERP platform. **Phase 1** delivers authentication
 ## Layout
 
 ```
-backend/          FastAPI app (app/modules/{auth,users,orgs,rbac}), Alembic, CLI
+backend/          FastAPI app (app/modules/{auth,users,orgs,rbac,products,parties,...}), Alembic, CLI
 frontend/         Next.js app (src/app, src/hooks, src/components, src/types, src/theme)
 docker-compose.yml  Postgres
 dev.sh            run everything
