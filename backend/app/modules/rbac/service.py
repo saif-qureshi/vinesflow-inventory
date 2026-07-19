@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.utils import slugify
+from app.modules.activities.service import ActivityService
 from app.modules.orgs.models import Membership
 from app.modules.rbac.constants import DEFAULT_ROLES, PERMISSION_CATALOG
 from app.modules.rbac.models import Permission, Role
@@ -14,6 +15,7 @@ from app.modules.rbac.schemas import RoleCreate, RoleUpdate
 class RbacService:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self.activity = ActivityService(db)
 
     def seed_permissions(self) -> dict[str, Permission]:
         """Ensure every permission in the catalog exists. Returns code -> Permission."""
@@ -88,6 +90,8 @@ class RbacService:
             permissions=self.resolve_permissions(payload.permissions),
         )
         self.db.add(role)
+        self.db.flush()
+        self.activity.record(org_id, "created", "role", role.name, entity_id=role.id)
         self.db.commit()
         self.db.refresh(role)
         return role
@@ -102,6 +106,7 @@ class RbacService:
             role.description = payload.description
         if payload.permissions is not None:
             role.permissions = self.resolve_permissions(payload.permissions)
+        self.activity.record(org_id, "updated", "role", role.name, entity_id=role.id)
         self.db.commit()
         self.db.refresh(role)
         return role
@@ -115,5 +120,6 @@ class RbacService:
         )
         if in_use:
             raise ConflictError("Role is assigned to members; reassign them first")
+        self.activity.record(org_id, "deleted", "role", role.name, entity_id=role.id)
         self.db.delete(role)
         self.db.commit()

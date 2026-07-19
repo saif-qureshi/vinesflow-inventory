@@ -8,16 +8,20 @@ from app.core.utils import slugify
 from app.modules.orgs.models import Membership, Organization
 from app.modules.orgs.schemas import MemberAdd, MemberUpdate, OrgCreate, OrgUpdate
 from app.modules.rbac.constants import ALL_PERMISSION_CODES, OWNER_ROLE_SLUG
+from app.modules.activities.service import ActivityService
 from app.modules.rbac.models import Role
 from app.modules.rbac.service import RbacService
 from app.modules.uoms.service import UomService
 from app.modules.users.models import User
+
+_BRANDING_FIELDS = {"theme", "accent_color", "keep_branding", "logo_url"}
 
 
 class OrgService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.rbac = RbacService(db)
+        self.activity = ActivityService(db)
 
     # --- Creation ---------------------------------------------------------
 
@@ -97,6 +101,12 @@ class OrgService:
             org.accent_color = payload.accent_color
         if payload.keep_branding is not None:
             org.keep_branding = payload.keep_branding
+        changed = payload.model_fields_set - _BRANDING_FIELDS
+        if changed:
+            self.activity.record(
+                org.id, "updated", "organization", org.name,
+                entity_id=org.id, context={"fields": sorted(changed)},
+            )
         self.db.commit()
         self.db.refresh(org)
         return org
@@ -144,6 +154,10 @@ class OrgService:
             raise ConflictError("User is already a member")
         member = Membership(user_id=user.id, org_id=org_id, role_id=role.id, is_owner=False)
         self.db.add(member)
+        self.db.flush()
+        self.activity.record(
+            org_id, "added", "member", user.email, entity_id=member.id, context={"role": role.name}
+        )
         self.db.commit()
         self.db.refresh(member)
         return member
@@ -156,6 +170,10 @@ class OrgService:
             raise ConflictError("Cannot change the owner's role")
         role = self._get_org_role(org_id, payload.role_id)
         member.role_id = role.id
+        self.activity.record(
+            org_id, "updated", "member", member.user.email,
+            entity_id=member.id, context={"role": role.name},
+        )
         self.db.commit()
         self.db.refresh(member)
         return member
@@ -164,5 +182,6 @@ class OrgService:
         member = self._get_member(org_id, membership_id)
         if member.is_owner:
             raise ConflictError("Cannot remove the org owner")
+        self.activity.record(org_id, "removed", "member", member.user.email, entity_id=member.id)
         self.db.delete(member)
         self.db.commit()

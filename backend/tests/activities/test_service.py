@@ -66,3 +66,45 @@ def test_list_is_scoped_by_org(db):
     ActivityService(db).record(org_a, "created", "product", "A")
     items, _, _ = ActivityService(db).list(org_b, ActivityListQuery())
     assert items == []
+
+
+def _org_events(db, org_id):
+    return list(
+        db.scalars(
+            select(Activity).where(Activity.org_id == org_id, Activity.entity_type == "organization")
+        )
+    )
+
+
+def test_org_update_recorded_branding_skipped(db):
+    from app.modules.orgs.models import Membership
+    from app.modules.orgs.schemas import OrgUpdate
+    from app.modules.orgs.service import OrgService as Svc
+
+    org_id, uid = _org(db)
+    db.info["actor_id"] = uid
+    membership = db.scalar(
+        select(Membership).where(Membership.org_id == org_id, Membership.user_id == uid)
+    )
+    svc = Svc(db)
+
+    svc.update_org(membership=membership, payload=OrgUpdate(name="Renamed"))
+    assert len(_org_events(db, org_id)) == 1
+
+    svc.update_org(membership=membership, payload=OrgUpdate(accent_color="#123456"))
+    assert len(_org_events(db, org_id)) == 1
+
+
+def test_role_create_recorded(db):
+    from app.modules.rbac.schemas import RoleCreate
+    from app.modules.rbac.service import RbacService
+
+    org_id, uid = _org(db)
+    db.info["actor_id"] = uid
+    RbacService(db).create_role(
+        org_id=org_id, payload=RoleCreate(name="Auditor", description="", permissions=["products:read"])
+    )
+    acts = list(
+        db.scalars(select(Activity).where(Activity.org_id == org_id, Activity.entity_type == "role"))
+    )
+    assert len(acts) == 1 and acts[0].action == "created"
