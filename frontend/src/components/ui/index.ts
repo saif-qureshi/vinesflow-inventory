@@ -1,0 +1,32 @@
+// Single import surface for UI across the app.
+// Custom primitives/composites live here; the rest are standardized re-exports of antd.
+
+export { Button, type ButtonProps } from "./Button";
+export { Input, Password, TextArea } from "./Input";
+export { PageHeader } from "./PageHeader";
+export { DataTable } from "./DataTable";
+export { StatCard } from "./StatCard";
+export { FormModal } from "./FormModal";
+
+export {
+  App,
+  Avatar,
+  Card,
+  Checkbox,
+  Col,
+  Divider,
+  Dropdown,
+  Form,
+  Layout,
+  Menu,
+  Modal,
+  Popconfirm,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from "antd";

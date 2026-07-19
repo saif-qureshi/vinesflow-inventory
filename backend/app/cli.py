@@ -1,0 +1,240 @@
+from __future__ import annotations
+
+import typer
+from sqlalchemy import func, select
+
+import app.db.base  # noqa: F401  (register all mappers)
+from app.core.security import hash_password
+from app.db.session import SessionLocal
+from app.modules.auth.models import RefreshSession
+from app.modules.orgs.models import Membership, Organization
+from app.modules.orgs.service import create_org_with_owner
+from app.modules.rbac.models import Role
+from app.modules.rbac.service import resolve_permissions, seed_permissions
+from app.modules.users.models import User
+
+app = typer.Typer(no_args_is_help=True, help="Vineflow backend management CLI")
+users_app = typer.Typer(no_args_is_help=True, help="Manage users")
+orgs_app = typer.Typer(no_args_is_help=True, help="Manage organizations")
+roles_app = typer.Typer(no_args_is_help=True, help="Inspect roles")
+db_app = typer.Typer(no_args_is_help=True, help="Database tasks")
+app.add_typer(users_app, name="users")
+app.add_typer(orgs_app, name="orgs")
+app.add_typer(roles_app, name="roles")
+app.add_typer(db_app, name="db")
+
+
+def _get_user(db, email: str) -> User:
+    user = db.scalar(select(User).where(User.email == email.lower()))
+    if user is None:
+        typer.secho(f"User not found: {email}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    return user
+
+
+def _get_org(db, ref: str) -> Organization:
+    org = db.scalar(select(Organization).where(Organization.slug == ref))
+    if org is None and ref.isdigit():
+        org = db.get(Organization, int(ref))
+    if org is None:
+        typer.secho(f"Org not found: {ref}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    return org
+
+
+@users_app.command("create")
+def users_create(
+    email: str = typer.Option(..., prompt=True),
+    password: str = typer.Option(..., prompt=True, hide_input=True, confirmation_prompt=True),
+    full_name: str = typer.Option(None),
+    org: str = typer.Option(None, help="Name of an org to create with this user as owner"),
+    superuser: bool = typer.Option(False, help="Grant platform superuser"),
+):
+    db = SessionLocal()
+    try:
+        if db.scalar(select(User.id).where(User.email == email.lower())):
+            typer.secho("Email already exists", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        user = User(
+            email=email.lower(),
+            full_name=full_name,
+            hashed_password=hash_password(password),
+            is_superuser=superuser,
+        )
+        db.add(user)
+        db.flush()
+        if org:
+            created = create_org_with_owner(db, owner=user, name=org)
+            typer.echo(f"  org: {created.name} (slug={created.slug})")
+        db.commit()
+        typer.secho(f"Created user {user.email} (id={user.id}, superuser={superuser})", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@users_app.command("list")
+def users_list():
+    db = SessionLocal()
+    try:
+        for u in db.scalars(select(User).order_by(User.id)).all():
+            orgs = db.scalar(select(func.count()).select_from(Membership).where(Membership.user_id == u.id))
+            flag = " [superuser]" if u.is_superuser else ""
+            typer.echo(f"  {u.id:>3}  {u.email:28} orgs={orgs} active={u.is_active}{flag}")
+    finally:
+        db.close()
+
+
+@users_app.command("set-password")
+def users_set_password(
+    email: str,
+    password: str = typer.Option(..., prompt=True, hide_input=True, confirmation_prompt=True),
+):
+    db = SessionLocal()
+    try:
+        user = _get_user(db, email)
+        user.hashed_password = hash_password(password)
+        db.commit()
+        typer.secho(f"Password updated for {user.email}", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@users_app.command("set-superuser")
+def users_set_superuser(email: str, enable: bool = typer.Option(True)):
+    db = SessionLocal()
+    try:
+        user = _get_user(db, email)
+        user.is_superuser = enable
+        db.commit()
+        typer.secho(f"{user.email} superuser={enable}", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@orgs_app.command("create")
+def orgs_create(name: str, owner_email: str):
+    db = SessionLocal()
+    try:
+        owner = _get_user(db, owner_email)
+        org = create_org_with_owner(db, owner=owner, name=name)
+        db.commit()
+        typer.secho(f"Created org {org.name} (slug={org.slug}) owned by {owner.email}", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@orgs_app.command("list")
+def orgs_list():
+    db = SessionLocal()
+    try:
+        for o in db.scalars(select(Organization).order_by(Organization.id)).all():
+            members = db.scalar(select(func.count()).select_from(Membership).where(Membership.org_id == o.id))
+            typer.echo(f"  {o.id:>3}  {o.name:28} slug={o.slug:20} members={members}")
+    finally:
+        db.close()
+
+
+@orgs_app.command("add-member")
+def orgs_add_member(org: str, email: str, role_slug: str = typer.Option("member")):
+    db = SessionLocal()
+    try:
+        organization = _get_org(db, org)
+        user = _get_user(db, email)
+        role = db.scalar(
+            select(Role).where(Role.org_id == organization.id, Role.slug == role_slug)
+        )
+        if role is None:
+            typer.secho(f"Role '{role_slug}' not found in org", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        if db.scalar(
+            select(Membership).where(
+                Membership.org_id == organization.id, Membership.user_id == user.id
+            )
+        ):
+            typer.secho("Already a member", fg=typer.colors.YELLOW)
+            raise typer.Exit(1)
+        db.add(Membership(user_id=user.id, org_id=organization.id, role_id=role.id))
+        db.commit()
+        typer.secho(f"Added {user.email} to {organization.name} as {role_slug}", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@roles_app.command("list")
+def roles_list(org: str):
+    db = SessionLocal()
+    try:
+        organization = _get_org(db, org)
+        for r in db.scalars(
+            select(Role).where(Role.org_id == organization.id).order_by(Role.id)
+        ).all():
+            kind = "system" if r.is_system else "custom"
+            typer.echo(f"  {r.id:>3}  {r.slug:16} {kind:7} perms={len(r.permissions)}")
+    finally:
+        db.close()
+
+
+@roles_app.command("grant")
+def roles_grant(org: str, role_slug: str, permission_codes: list[str]):
+    db = SessionLocal()
+    try:
+        organization = _get_org(db, org)
+        role = db.scalar(
+            select(Role).where(Role.org_id == organization.id, Role.slug == role_slug)
+        )
+        if role is None:
+            typer.secho("Role not found", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        existing = {p.code for p in role.permissions}
+        for perm in resolve_permissions(db, list(permission_codes)):
+            if perm.code not in existing:
+                role.permissions.append(perm)
+        db.commit()
+        typer.secho(f"Granted {permission_codes} to {role_slug}", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@db_app.command("seed")
+def db_seed():
+    db = SessionLocal()
+    try:
+        seed_permissions(db)
+        db.commit()
+        typer.secho("Permission catalog seeded", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@db_app.command("upgrade")
+def db_upgrade():
+    from alembic import command
+    from alembic.config import Config
+
+    command.upgrade(Config("alembic.ini"), "head")
+
+
+@db_app.command("prune-sessions")
+def db_prune_sessions():
+    from datetime import datetime, timezone
+
+    from sqlalchemy import delete, or_
+
+    db = SessionLocal()
+    try:
+        result = db.execute(
+            delete(RefreshSession).where(
+                or_(
+                    RefreshSession.expires_at < datetime.now(timezone.utc),
+                    RefreshSession.revoked_at.is_not(None),
+                )
+            )
+        )
+        db.commit()
+        typer.secho(f"Pruned {result.rowcount} expired/revoked sessions", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    app()
