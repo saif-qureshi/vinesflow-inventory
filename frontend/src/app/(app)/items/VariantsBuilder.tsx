@@ -21,6 +21,8 @@ export function VariantsBuilder({
   currency,
   baseSku,
   baseName,
+  excluded,
+  onRemove,
 }: {
   attributes: VariantAttribute[];
   setAttributes: Dispatch<SetStateAction<VariantAttribute[]>>;
@@ -29,8 +31,12 @@ export function VariantsBuilder({
   currency: string;
   baseSku: string;
   baseName: string;
+  excluded: Set<string>;
+  onRemove: (sig: string) => void;
 }) {
-  const rows: Row[] = cartesian(attributes).map((options) => ({ options }));
+  const rows: Row[] = cartesian(attributes)
+    .filter((options) => !excluded.has(variantSig(options)))
+    .map((options) => ({ options }));
 
   const updateAttr = (i: number, patch: Partial<VariantAttribute>) =>
     setAttributes((prev) => prev.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
@@ -150,6 +156,21 @@ export function VariantsBuilder({
           />
         );
       },
+    },
+    {
+      title: "",
+      key: "remove",
+      width: 48,
+      align: "right",
+      render: (_, row) => (
+        <Button
+          type="text"
+          danger
+          size="small"
+          icon={<Trash2 size={14} />}
+          onClick={() => onRemove(variantSig(row.options))}
+        />
+      ),
     },
   ];
 

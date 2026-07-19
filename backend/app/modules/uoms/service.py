@@ -7,10 +7,36 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.modules.uoms.models import Uom
 from app.modules.uoms.schemas import UomCreate, UomUpdate
 
+DEFAULT_UOMS: list[tuple[str, str]] = [
+    ("Piece", "pc"),
+    ("Box", "box"),
+    ("Pack", "pack"),
+    ("Dozen", "dz"),
+    ("Pair", "pr"),
+    ("Set", "set"),
+    ("Unit", "unit"),
+    ("Kilogram", "kg"),
+    ("Gram", "g"),
+    ("Liter", "L"),
+    ("Milliliter", "mL"),
+    ("Meter", "m"),
+    ("Centimeter", "cm"),
+    ("Hour", "hr"),
+]
+
 
 class UomService:
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    def seed_defaults(self, org_id: int) -> None:
+        existing = set(self.db.scalars(select(Uom.name).where(Uom.org_id == org_id)))
+        self.db.add_all(
+            Uom(org_id=org_id, name=name, symbol=symbol)
+            for name, symbol in DEFAULT_UOMS
+            if name not in existing
+        )
+        self.db.flush()
 
     def list(self, org_id: int) -> list[Uom]:
         return list(self.db.scalars(select(Uom).where(Uom.org_id == org_id).order_by(Uom.name)).all())

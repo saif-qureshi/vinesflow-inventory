@@ -37,7 +37,7 @@ class VariantAttributeRead(BaseModel):
 
 
 class VariantInput(BaseModel):
-    # Selected value per attribute name, e.g. {"Color": "Red", "Size": "S"}.
+    id: int | None = None
     options: dict[str, str]
     name: str | None = None
     sku: str | None = Field(default=None, max_length=100)

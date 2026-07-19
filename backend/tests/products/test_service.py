@@ -1,6 +1,7 @@
 import pytest
+from sqlalchemy import select
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.security import hash_password
 from app.modules.categories.schemas import CategoryCreate
 from app.modules.categories.service import CategoryService
@@ -10,6 +11,7 @@ from app.modules.orgs.service import OrgService
 from app.modules.products.models import PRODUCT_MEDIA_TYPE
 from app.modules.products.schemas import ProductCreate
 from app.modules.products.service import ProductService
+from app.modules.uoms.models import Uom
 from app.modules.users.models import User
 
 
@@ -22,22 +24,43 @@ def _org(db) -> int:
     return org.id
 
 
+def _uom(db, org_id: int) -> int:
+    return db.scalar(select(Uom.id).where(Uom.org_id == org_id).limit(1))
+
+
 def test_create_product_persists_media(db):
     org_id = _org(db)
     product = ProductService(db).create(
         org_id,
-        ProductCreate(name="Item", media=[{"url": "https://cdn/a.png"}, {"url": "https://cdn/b.png"}]),
+        ProductCreate(
+            name="Item",
+            uom_id=_uom(db, org_id),
+            media=[{"url": "https://cdn/a.png"}, {"url": "https://cdn/b.png"}],
+        ),
     )
     media = MediaService(db).list_for(PRODUCT_MEDIA_TYPE, product.id)
     assert [m.url for m in media] == ["https://cdn/a.png", "https://cdn/b.png"]
 
 
+def test_goods_require_uom(db):
+    org_id = _org(db)
+    with pytest.raises(BadRequestError):
+        ProductService(db).create(org_id, ProductCreate(name="Item", nature="good"))
+
+
+def test_service_does_not_require_uom(db):
+    org_id = _org(db)
+    product = ProductService(db).create(org_id, ProductCreate(name="Consulting", nature="service"))
+    assert product.uom_id is None
+
+
 def test_sku_uniqueness_enforced(db):
     org_id = _org(db)
     svc = ProductService(db)
-    svc.create(org_id, ProductCreate(name="A", sku="X1"))
+    uom_id = _uom(db, org_id)
+    svc.create(org_id, ProductCreate(name="A", sku="X1", uom_id=uom_id))
     with pytest.raises(ConflictError):
-        svc.create(org_id, ProductCreate(name="B", sku="X1"))
+        svc.create(org_id, ProductCreate(name="B", sku="X1", uom_id=uom_id))
 
 
 def test_invalid_category_ref_raises_not_found(db):
@@ -49,7 +72,9 @@ def test_invalid_category_ref_raises_not_found(db):
 def test_delete_removes_media(db):
     org_id = _org(db)
     svc = ProductService(db)
-    product = svc.create(org_id, ProductCreate(name="A", media=[{"url": "https://cdn/a.png"}]))
+    product = svc.create(
+        org_id, ProductCreate(name="A", uom_id=_uom(db, org_id), media=[{"url": "https://cdn/a.png"}])
+    )
     pid = product.id
     svc.delete(org_id, pid)
     assert db.query(MediaAsset).filter_by(attachable_type=PRODUCT_MEDIA_TYPE, attachable_id=pid).count() == 0
@@ -61,11 +86,13 @@ def test_variant_attributes_are_reused_org_wide(db):
 
     org_id = _org(db)
     svc = ProductService(db)
+    uom_id = _uom(db, org_id)
     svc.create(
         org_id,
         ProductCreate(
             name="A",
             type="variable",
+            uom_id=uom_id,
             variant_attributes=[VariantAttributeInput(name="Color", options=["Red"])],
             variants=[VariantInput(options={"Color": "Red"})],
         ),
@@ -75,6 +102,7 @@ def test_variant_attributes_are_reused_org_wide(db):
         ProductCreate(
             name="B",
             type="variable",
+            uom_id=uom_id,
             variant_attributes=[VariantAttributeInput(name="Color", options=["Red", "Green"])],
             variants=[VariantInput(options={"Color": "Green"})],
         ),
@@ -86,5 +114,91 @@ def test_variant_attributes_are_reused_org_wide(db):
 def test_valid_category_link(db):
     org_id = _org(db)
     category = CategoryService(db).create(org_id, CategoryCreate(name="Cat"))
-    product = ProductService(db).create(org_id, ProductCreate(name="A", category_id=category.id))
+    product = ProductService(db).create(
+        org_id, ProductCreate(name="A", category_id=category.id, uom_id=_uom(db, org_id))
+    )
     assert product.category.name == "Cat"
+
+
+def test_update_preserves_variant_ids(db):
+    from app.modules.products.schemas import (
+        ProductUpdate,
+        VariantAttributeInput,
+        VariantInput,
+    )
+
+    org_id = _org(db)
+    svc = ProductService(db)
+    product = svc.create(
+        org_id,
+        ProductCreate(
+            name="Shirt",
+            type="variable",
+            uom_id=_uom(db, org_id),
+            variant_attributes=[VariantAttributeInput(name="Color", options=["Red", "Blue"])],
+            variants=[
+                VariantInput(options={"Color": "Red"}, sale_price=100),
+                VariantInput(options={"Color": "Blue"}, sale_price=100),
+            ],
+        ),
+    )
+    by_color = {v.values[0].value: v for v in product.variants}
+    red_id, blue_id = by_color["Red"].id, by_color["Blue"].id
+
+    updated = svc.update(
+        org_id,
+        product.id,
+        ProductUpdate(
+            variant_attributes=[VariantAttributeInput(name="Color", options=["Red", "Blue"])],
+            variants=[
+                VariantInput(id=red_id, options={"Color": "Red"}, sale_price=250),
+                VariantInput(id=blue_id, options={"Color": "Blue"}, sale_price=100),
+            ],
+        ),
+    )
+    after = {v.values[0].value: v for v in updated.variants}
+    assert after["Red"].id == red_id
+    assert after["Blue"].id == blue_id
+    assert after["Red"].sale_price == 250
+
+
+def test_update_adds_and_removes_variants(db):
+    from app.modules.products.models import ProductVariant
+    from app.modules.products.schemas import (
+        ProductUpdate,
+        VariantAttributeInput,
+        VariantInput,
+    )
+
+    org_id = _org(db)
+    svc = ProductService(db)
+    product = svc.create(
+        org_id,
+        ProductCreate(
+            name="Shirt",
+            type="variable",
+            uom_id=_uom(db, org_id),
+            variant_attributes=[VariantAttributeInput(name="Color", options=["Red", "Blue"])],
+            variants=[
+                VariantInput(options={"Color": "Red"}),
+                VariantInput(options={"Color": "Blue"}),
+            ],
+        ),
+    )
+    red_id = next(v.id for v in product.variants if v.values[0].value == "Red")
+
+    svc.update(
+        org_id,
+        product.id,
+        ProductUpdate(
+            variant_attributes=[VariantAttributeInput(name="Color", options=["Red", "Green"])],
+            variants=[
+                VariantInput(id=red_id, options={"Color": "Red"}),
+                VariantInput(options={"Color": "Green"}),
+            ],
+        ),
+    )
+    values = {v.values[0].value: v.id for v in product.variants}
+    assert set(values) == {"Red", "Green"}
+    assert values["Red"] == red_id
+    assert db.query(ProductVariant).filter_by(product_id=product.id).count() == 2

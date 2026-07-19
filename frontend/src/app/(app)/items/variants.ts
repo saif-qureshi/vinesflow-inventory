@@ -1,6 +1,7 @@
 import type { VariantAttribute } from "@/types";
 
 export interface VariantOverride {
+  id?: number;
   sku?: string;
   sale_price?: number | null;
   purchase_price?: number | null;

@@ -20,8 +20,8 @@ def _org(db) -> int:
 def test_create_and_get_uom(db):
     org_id = _org(db)
     svc = UomService(db)
-    uom = svc.create(org_id, UomCreate(name="Box", symbol="bx"))
-    assert svc.get(org_id, uom.id).symbol == "bx"
+    uom = svc.create(org_id, UomCreate(name="Carton", symbol="ctn"))
+    assert svc.get(org_id, uom.id).symbol == "ctn"
 
 
 def test_duplicate_name_raises_conflict(db):

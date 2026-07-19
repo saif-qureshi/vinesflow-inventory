@@ -6,14 +6,14 @@ import { Eye, MoreHorizontal, Package, Pencil, Plus, Trash2 } from "lucide-react
 import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 
-import { App, Avatar, Button, DataTable, Dropdown, PageHeader, Tag, Typography } from "@/components/ui";
+import { App, Avatar, Button, DataTable, Dropdown, PageHeader, Table, Tag, Typography } from "@/components/ui";
 import { FilterDropdown } from "@/components/ui/FilterDropdown";
 import { useCan } from "@/hooks/useSession";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useCategories } from "@/hooks/useCategories";
 import { useDeleteProduct, useProducts, type ProductFilters } from "@/hooks/useProducts";
 import { apiErrorMessage } from "@/lib/api";
-import type { Product } from "@/types";
+import type { Product, ProductVariant } from "@/types";
 
 export default function ItemsPage() {
   const router = useRouter();
@@ -58,6 +58,68 @@ export default function ItemsPage() {
 
   const products = data?.pages.flatMap((p) => p.items) ?? [];
   const patch = (f: Partial<ProductFilters>) => setFilters((prev) => ({ ...prev, ...f }));
+  const dash = <span className="text-gray-400">—</span>;
+
+  const priceLabel = (p: Product) => {
+    if (p.type !== "variable") return p.sale_price != null ? money(p.sale_price) : "—";
+    const prices = p.variants.map((v) => v.sale_price).filter((n): n is number => n != null);
+    if (!prices.length) return "—";
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    return min === max ? money(min) : `${money(min)} – ${money(max)}`;
+  };
+
+  const variantColumns = (p: Product): ColumnsType<ProductVariant> => [
+    {
+      title: "Variant",
+      key: "variant",
+      render: (_, v) => (
+        <div className="flex flex-wrap gap-1">
+          {v.values.map((val) => (
+            <Tag key={val.id}>{val.value}</Tag>
+          ))}
+        </div>
+      ),
+    },
+    { title: "SKU", key: "sku", render: (_, v) => v.sku || dash },
+    {
+      title: "Sale price",
+      key: "sale",
+      align: "right",
+      render: (_, v) => <span className="tabular-nums">{v.sale_price != null ? money(v.sale_price) : "—"}</span>,
+    },
+    {
+      title: "Purchase price",
+      key: "purchase",
+      align: "right",
+      render: (_, v) => (
+        <span className="tabular-nums">{v.purchase_price != null ? money(v.purchase_price) : "—"}</span>
+      ),
+    },
+    {
+      title: "Status",
+      key: "status",
+      render: (_, v) => (v.is_active ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>),
+    },
+    ...(can("products:update")
+      ? [
+          {
+            title: "",
+            key: "actions",
+            width: 56,
+            align: "right" as const,
+            render: () => (
+              <Button
+                type="text"
+                size="small"
+                icon={<Pencil size={14} />}
+                onClick={() => router.push(`/items/${p.id}/edit`)}
+              />
+            ),
+          },
+        ]
+      : []),
+  ];
 
   const columns: ColumnsType<Product> = [
     {
@@ -105,9 +167,7 @@ export default function ItemsPage() {
       title: "Sale price",
       key: "sale_price",
       align: "right",
-      render: (_, p) => (
-        <span className="tabular-nums">{p.sale_price != null ? money(p.sale_price) : "—"}</span>
-      ),
+      render: (_, p) => <span className="tabular-nums">{priceLabel(p)}</span>,
     },
     {
       title: "Status",
@@ -197,6 +257,20 @@ export default function ItemsPage() {
         onSearch={(search) => patch({ search })}
         toolbar={toolbar}
         onRowClick={(p) => router.push(`/items/${p.id}`)}
+        expandable={{
+          rowExpandable: (p) => p.type === "variable" && p.variants.length > 0,
+          expandedRowRender: (p) => (
+            <div className="px-4 py-2">
+              <Table<ProductVariant>
+                size="small"
+                rowKey="id"
+                pagination={false}
+                columns={variantColumns(p)}
+                dataSource={p.variants}
+              />
+            </div>
+          ),
+        }}
         hasMore={hasNextPage}
         onLoadMore={() => fetchNextPage()}
         loadingMore={isFetchingNextPage}

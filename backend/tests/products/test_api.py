@@ -7,7 +7,8 @@ def setup(client, register, org_id_of, h):
     org = org_id_of(token)
     hdr = h(token, org)
     category_id = client.post("/api/v1/categories", headers=hdr, json={"name": "Electronics"}).json()["data"]["id"]
-    uom_id = client.post("/api/v1/uoms", headers=hdr, json={"name": "Piece", "symbol": "pc"}).json()["data"]["id"]
+    uoms = client.get("/api/v1/uoms", headers=hdr).json()["data"]
+    uom_id = next(u["id"] for u in uoms if u["symbol"] == "pc")
     return {"hdr": hdr, "category_id": category_id, "uom_id": uom_id}
 
 
@@ -42,9 +43,9 @@ def test_create_product_with_refs_media_and_prices(client, setup):
 
 
 def test_duplicate_sku_conflicts(client, setup):
-    hdr = setup["hdr"]
-    client.post("/api/v1/products", headers=hdr, json={"name": "A", "sku": "DUP"})
-    dup = client.post("/api/v1/products", headers=hdr, json={"name": "B", "sku": "DUP"})
+    hdr, uom_id = setup["hdr"], setup["uom_id"]
+    client.post("/api/v1/products", headers=hdr, json={"name": "A", "sku": "DUP", "uom_id": uom_id})
+    dup = client.post("/api/v1/products", headers=hdr, json={"name": "B", "sku": "DUP", "uom_id": uom_id})
     assert dup.status_code == 409
 
 
@@ -55,12 +56,17 @@ def test_unknown_category_returns_not_found(client, setup):
     assert res.status_code == 404
 
 
+def test_goods_require_unit(client, setup):
+    res = client.post("/api/v1/products", headers=setup["hdr"], json={"name": "NoUnit", "nature": "good"})
+    assert res.status_code == 400
+
+
 def test_update_replaces_media(client, setup):
     hdr = setup["hdr"]
     pid = client.post(
         "/api/v1/products",
         headers=hdr,
-        json={"name": "Widget", "media": [{"url": "https://cdn/old.png"}]},
+        json={"name": "Widget", "uom_id": setup["uom_id"], "media": [{"url": "https://cdn/old.png"}]},
     ).json()["data"]["id"]
 
     upd = client.patch(
@@ -75,7 +81,9 @@ def test_update_replaces_media(client, setup):
 
 def test_list_and_delete(client, setup):
     hdr = setup["hdr"]
-    pid = client.post("/api/v1/products", headers=hdr, json={"name": "ToDelete"}).json()["data"]["id"]
+    pid = client.post(
+        "/api/v1/products", headers=hdr, json={"name": "ToDelete", "uom_id": setup["uom_id"]}
+    ).json()["data"]["id"]
     page = client.get("/api/v1/products", headers=hdr).json()["data"]
     assert any(p["id"] == pid for p in page["items"])
     assert client.delete(f"/api/v1/products/{pid}", headers=hdr).status_code == 204
@@ -90,6 +98,7 @@ def test_variable_product_with_variants(client, setup):
         json={
             "name": "T-Shirt",
             "type": "variable",
+            "uom_id": setup["uom_id"],
             "variant_attributes": [
                 {"name": "Color", "options": ["Red", "Blue"]},
                 {"name": "Size", "options": ["S", "M"]},
@@ -114,7 +123,11 @@ def test_variable_product_with_variants(client, setup):
 
 def test_search_and_filter(client, setup):
     hdr = setup["hdr"]
-    client.post("/api/v1/products", headers=hdr, json={"name": "Blue Shirt", "nature": "good", "sku": "SH1"})
+    client.post(
+        "/api/v1/products",
+        headers=hdr,
+        json={"name": "Blue Shirt", "nature": "good", "sku": "SH1", "uom_id": setup["uom_id"]},
+    )
     client.post("/api/v1/products", headers=hdr, json={"name": "Consulting", "nature": "service"})
 
     by_search = client.get("/api/v1/products?search=shirt", headers=hdr).json()["data"]["items"]
@@ -135,7 +148,7 @@ def test_search_and_filter(client, setup):
 def test_cursor_pagination(client, setup):
     hdr = setup["hdr"]
     for i in range(5):
-        client.post("/api/v1/products", headers=hdr, json={"name": f"P{i}"})
+        client.post("/api/v1/products", headers=hdr, json={"name": f"P{i}", "uom_id": setup["uom_id"]})
 
     first = client.get("/api/v1/products?limit=2", headers=hdr).json()["data"]
     assert len(first["items"]) == 2

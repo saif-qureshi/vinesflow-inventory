@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.pagination import paginate_cursor
 from app.modules.attributes.models import Attribute, AttributeValue
 from app.modules.categories.models import Category
@@ -57,6 +57,10 @@ class ProductService:
         ) is None:
             raise NotFoundError("Unit not found")
 
+    def _require_uom_for_goods(self, nature: str, uom_id: int | None) -> None:
+        if nature == "good" and uom_id is None:
+            raise BadRequestError("A unit of measure is required for goods")
+
     def _ensure_unique_sku(self, org_id: int, sku: str | None, exclude_id: int | None = None) -> None:
         if not sku:
             return
@@ -98,23 +102,29 @@ class ProductService:
     ) -> None:
         mapping = self._upsert_values(org_id, attributes)
         product.attribute_values = list(mapping.values())
-        product.variants = [
-            ProductVariant(
-                org_id=org_id,
-                name=v.name or " / ".join(v.options.values()),
-                sku=v.sku,
-                barcode=v.barcode,
-                sale_price=v.sale_price,
-                purchase_price=v.purchase_price,
-                is_active=v.is_active,
-                sort_order=i,
-                values=[mapping[(a, val)] for a, val in v.options.items() if (a, val) in mapping],
-            )
-            for i, v in enumerate(variants)
-        ]
+
+        existing = {v.id: v for v in product.variants}
+        reconciled: list[ProductVariant] = []
+        for i, v in enumerate(variants):
+            values = [mapping[(a, val)] for a, val in v.options.items() if (a, val) in mapping]
+            name = v.name or " / ".join(v.options.values())
+            variant = existing.get(v.id) if v.id is not None else None
+            if variant is None:
+                variant = ProductVariant(org_id=org_id)
+            variant.name = name
+            variant.sku = v.sku
+            variant.barcode = v.barcode
+            variant.sale_price = v.sale_price
+            variant.purchase_price = v.purchase_price
+            variant.is_active = v.is_active
+            variant.sort_order = i
+            variant.values = values
+            reconciled.append(variant)
+        product.variants = reconciled
 
     def create(self, org_id: int, payload: ProductCreate) -> Product:
         self._validate_refs(org_id, payload.category_id, payload.uom_id)
+        self._require_uom_for_goods(payload.nature, payload.uom_id)
         self._ensure_unique_sku(org_id, payload.sku)
         data = payload.model_dump(exclude={"media", "variant_attributes", "variants"})
         product = Product(org_id=org_id, **data)
@@ -136,6 +146,11 @@ class ProductService:
         self._validate_refs(org_id, payload.category_id, payload.uom_id)
         if payload.sku is not None:
             self._ensure_unique_sku(org_id, payload.sku, exclude_id=product_id)
+
+        fields = payload.model_fields_set
+        nature = payload.nature if "nature" in fields else product.nature
+        uom_id = payload.uom_id if "uom_id" in fields else product.uom_id
+        self._require_uom_for_goods(nature, uom_id)
 
         scalar_fields = payload.model_dump(
             exclude_unset=True, exclude={"media", "variant_attributes", "variants"}

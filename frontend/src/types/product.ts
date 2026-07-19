@@ -29,6 +29,7 @@ export interface ProductVariant {
 }
 
 export interface VariantInput {
+  id?: number | null;
   options: Record<string, string>;
   name?: string;
   sku?: string | null;

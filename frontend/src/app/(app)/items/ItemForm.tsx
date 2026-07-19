@@ -50,6 +50,7 @@ export function ItemForm({ product }: { product?: Product }) {
     for (const v of product?.variants ?? []) {
       const options = Object.fromEntries(v.values.map((val) => [val.attribute_name, val.value]));
       ov[variantSig(options)] = {
+        id: v.id,
         sku: v.sku ?? undefined,
         sale_price: v.sale_price,
         purchase_price: v.purchase_price,
@@ -57,9 +58,23 @@ export function ItemForm({ product }: { product?: Product }) {
     }
     return ov;
   });
+  const [excluded, setExcluded] = useState<Set<string>>(() => {
+    if (!product) return new Set();
+    const present = new Set(
+      product.variants.map((v) =>
+        variantSig(Object.fromEntries(v.values.map((val) => [val.attribute_name, val.value]))),
+      ),
+    );
+    return new Set(
+      cartesian(product.variant_attributes)
+        .map(variantSig)
+        .filter((sig) => !present.has(sig)),
+    );
+  });
 
   const isEdit = !!product;
   const isVariable = Form.useWatch("type", form) === "variable";
+  const natureValue = Form.useWatch("nature", form);
   const skuValue = Form.useWatch("sku", form);
   const nameValue = Form.useWatch("name", form);
   const saving = create.isPending || update.isPending;
@@ -91,15 +106,18 @@ export function ItemForm({ product }: { product?: Product }) {
       media: media.map((url, i) => ({ url, sort_order: i })),
       variant_attributes: variable ? cleanAttrs : [],
       variants: variable
-        ? cartesian(cleanAttrs).map((options) => {
-            const o = overrides[variantSig(options)] ?? {};
-            return {
-              options,
-              sku: o.sku || undefined,
-              sale_price: o.sale_price ?? undefined,
-              purchase_price: o.purchase_price ?? undefined,
-            };
-          })
+        ? cartesian(cleanAttrs)
+            .filter((options) => !excluded.has(variantSig(options)))
+            .map((options) => {
+              const o = overrides[variantSig(options)] ?? {};
+              return {
+                id: o.id,
+                options,
+                sku: o.sku || undefined,
+                sale_price: o.sale_price ?? undefined,
+                purchase_price: o.purchase_price ?? undefined,
+              };
+            })
         : [],
     };
     try {
@@ -148,7 +166,16 @@ export function ItemForm({ product }: { product?: Product }) {
               <Form.Item name="category_id" label="Category">
                 <Select options={categoryOptions} placeholder="Select category" allowClear showSearch optionFilterProp="label" loading={categories.isLoading} />
               </Form.Item>
-              <Form.Item name="uom_id" label="Unit">
+              <Form.Item
+                name="uom_id"
+                label="Unit"
+                dependencies={["nature"]}
+                rules={
+                  natureValue === "good"
+                    ? [{ required: true, message: "Unit is required for goods" }]
+                    : []
+                }
+              >
                 <Select options={uomOptions} placeholder="Select unit" allowClear showSearch optionFilterProp="label" loading={uoms.isLoading} />
               </Form.Item>
               <Form.Item name="sku" label="SKU">
@@ -185,6 +212,14 @@ export function ItemForm({ product }: { product?: Product }) {
             currency={currency}
             baseSku={skuValue ?? ""}
             baseName={nameValue ?? ""}
+            excluded={excluded}
+            onRemove={(sig) =>
+              setExcluded((prev) => {
+                const next = new Set(prev);
+                next.add(sig);
+                return next;
+              })
+            }
           />
         ) : (
           <div className="grid grid-cols-1 gap-x-6 md:grid-cols-2">
