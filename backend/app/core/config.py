@@ -28,6 +28,16 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
 
+    # Media storage: "local" (dev, served from disk) or "s3".
+    STORAGE_BACKEND: str = "local"
+    MEDIA_LOCAL_DIR: str = "media_storage"
+    MEDIA_PUBLIC_URL: str = "http://localhost:8000"
+    MAX_UPLOAD_MB: int = 5
+    S3_BUCKET: str | None = None
+    S3_REGION: str | None = None
+    S3_ENDPOINT_URL: str | None = None
+    S3_PUBLIC_URL: str | None = None
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def _split_cors(cls, v: str | list[str]) -> list[str]:

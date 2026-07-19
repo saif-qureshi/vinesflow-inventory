@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -21,6 +24,12 @@ app.add_middleware(
 )
 
 register_exception_handlers(app)
+
+# Serve locally-stored uploads in dev (S3 serves its own URLs in production).
+if settings.STORAGE_BACKEND == "local":
+    _media_dir = Path(settings.MEDIA_LOCAL_DIR)
+    _media_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/media/files", StaticFiles(directory=_media_dir), name="media")
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
