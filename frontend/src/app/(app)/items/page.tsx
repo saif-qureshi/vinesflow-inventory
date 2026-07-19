@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, MoreHorizontal, Package, Pencil, Plus, Trash2 } from "lucide-react";
 import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 
-import { App, Button, DataTable, Dropdown, PageHeader, Tag, Typography } from "@/components/ui";
+import { App, Avatar, Button, DataTable, Dropdown, PageHeader, Tag, Typography } from "@/components/ui";
 import { FilterDropdown } from "@/components/ui/FilterDropdown";
 import { useCan } from "@/hooks/useSession";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -64,13 +64,22 @@ export default function ItemsPage() {
       title: "Name",
       key: "name",
       render: (_, p) => (
-        <div>
-          <div className="font-medium">{p.name}</div>
-          {p.sku && (
-            <Typography.Text type="secondary" className="text-xs">
-              SKU: {p.sku}
-            </Typography.Text>
-          )}
+        <div className="flex items-center gap-3">
+          <Avatar
+            shape="square"
+            size={40}
+            src={p.media[0]?.url}
+            icon={<Package size={18} />}
+            className="shrink-0 !bg-gray-100 !text-gray-400"
+          />
+          <div>
+            <div className="font-medium">{p.name}</div>
+            {p.sku && (
+              <Typography.Text type="secondary" className="text-xs">
+                SKU: {p.sku}
+              </Typography.Text>
+            )}
+          </div>
         </div>
       ),
     },

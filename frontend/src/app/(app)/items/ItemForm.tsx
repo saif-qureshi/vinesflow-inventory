@@ -60,6 +60,8 @@ export function ItemForm({ product }: { product?: Product }) {
 
   const isEdit = !!product;
   const isVariable = Form.useWatch("type", form) === "variable";
+  const skuValue = Form.useWatch("sku", form);
+  const nameValue = Form.useWatch("name", form);
   const saving = create.isPending || update.isPending;
   const backHref = isEdit ? `/items/${product.id}` : "/items";
 
@@ -181,6 +183,8 @@ export function ItemForm({ product }: { product?: Product }) {
             overrides={overrides}
             setOverrides={setOverrides}
             currency={currency}
+            baseSku={skuValue ?? ""}
+            baseName={nameValue ?? ""}
           />
         ) : (
           <div className="grid grid-cols-1 gap-x-6 md:grid-cols-2">

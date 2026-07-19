@@ -19,12 +19,16 @@ export function VariantsBuilder({
   overrides,
   setOverrides,
   currency,
+  baseSku,
+  baseName,
 }: {
   attributes: VariantAttribute[];
   setAttributes: Dispatch<SetStateAction<VariantAttribute[]>>;
   overrides: Record<string, VariantOverride>;
   setOverrides: Dispatch<SetStateAction<Record<string, VariantOverride>>>;
   currency: string;
+  baseSku: string;
+  baseName: string;
 }) {
   const rows: Row[] = cartesian(attributes).map((options) => ({ options }));
 
@@ -33,6 +37,28 @@ export function VariantsBuilder({
 
   const setField = (sig: string, patch: VariantOverride) =>
     setOverrides((prev) => ({ ...prev, [sig]: { ...prev[sig], ...patch } }));
+
+  const clean = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  const baseCode = () => {
+    const sku = clean(baseSku);
+    if (sku) return sku;
+    const firstWord = (baseName || "").trim().split(/\s+/)[0] ?? "";
+    return clean(firstWord).slice(0, 3) || "ITEM";
+  };
+
+  const skuFor = (options: Record<string, string>) =>
+    [baseCode(), ...Object.values(options).map(clean)].filter(Boolean).join("-");
+
+  const generateSkus = () =>
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const row of rows) {
+        const sig = variantSig(row.options);
+        next[sig] = { ...next[sig], sku: skuFor(row.options) };
+      }
+      return next;
+    });
 
   const copyToAll = (field: "sale_price" | "purchase_price") => {
     if (!rows.length) return;
@@ -71,7 +97,16 @@ export function VariantsBuilder({
       ),
     },
     {
-      title: "SKU",
+      title: (
+        <div className="flex items-center justify-between gap-2">
+          <span>SKU</span>
+          {rows.length > 0 && (
+            <Button type="link" size="small" className="!px-0" onClick={generateSkus}>
+              Generate
+            </Button>
+          )}
+        </div>
+      ),
       key: "sku",
       render: (_, row) => {
         const sig = variantSig(row.options);
@@ -79,7 +114,7 @@ export function VariantsBuilder({
           <Input
             value={overrides[sig]?.sku ?? ""}
             onChange={(e) => setField(sig, { sku: e.target.value })}
-            placeholder="SKU"
+            placeholder={skuFor(row.options)}
           />
         );
       },
