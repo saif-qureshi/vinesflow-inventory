@@ -72,6 +72,7 @@ export function AddressAutoComplete({ value, onChange, disabled }: AddressAutoCo
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [manual, setManual] = useState(() => hasData(value));
+  if (!manual && hasData(value)) setManual(true);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const onSearch = (q: string) => {
