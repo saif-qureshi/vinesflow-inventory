@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -6,13 +6,13 @@ from sqlalchemy import select
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.security import hash_password
-from app.modules.documents.enums import DocumentStatus
+from app.modules.documents.enums import DocumentStatus, DocumentType
 from app.modules.documents.models import TaxRate
 from app.modules.documents.schemas import (
+    DocumentCreate,
     DocumentLineInput,
-    InvoiceCreate,
-    InvoiceListQuery,
-    InvoiceUpdate,
+    DocumentListQuery,
+    DocumentUpdate,
 )
 from app.modules.documents.service import DocumentService
 from app.modules.inventory.models import StockMovement
@@ -32,7 +32,7 @@ def _setup(db, *, track=True):
     org = OrgService(db).create_org_with_owner(owner=user, name="Acme")
     db.flush()
     loc = db.scalar(select(Location).where(Location.org_id == org.id))
-    party = Party(org_id=org.id, is_customer=True, name="Beta Corp", payment_term_days=15)
+    customer = Party(org_id=org.id, is_customer=True, name="Beta Corp", payment_term_days=15)
     product = Product(
         org_id=org.id,
         name="Widget",
@@ -41,9 +41,16 @@ def _setup(db, *, track=True):
         sale_price=Decimal("100"),
         purchase_price=Decimal("60"),
     )
-    db.add_all([party, product])
+    db.add_all([customer, product])
     db.flush()
-    return org.id, loc.id, party.id, product.id
+    return org.id, loc.id, customer.id, product.id
+
+
+def _vendor(db, org_id):
+    vendor = Party(org_id=org_id, is_vendor=True, name="Supplier")
+    db.add(vendor)
+    db.flush()
+    return vendor.id
 
 
 def _tax(db, org_id, name="GST 18%"):
@@ -57,6 +64,12 @@ def _line(pid, tax_id, qty=2, price=Decimal("100"), discount=Decimal("0")):
     )
 
 
+def _invoice(svc, org_id, party_id, pid, tax_id, **kw):
+    return svc.create(
+        org_id, DocumentType.INVOICE, DocumentCreate(party_id=party_id, lines=[_line(pid, tax_id)], **kw)
+    )
+
+
 def test_org_creation_seeds_tax_rates(db):
     org_id, *_ = _setup(db)
     names = set(db.scalars(select(TaxRate.name).where(TaxRate.org_id == org_id)))
@@ -66,10 +79,7 @@ def test_org_creation_seeds_tax_rates(db):
 def test_create_invoice_numbers_and_totals(db):
     org_id, loc_id, party_id, pid = _setup(db)
     svc = DocumentService(db)
-    tax = _tax(db, org_id)
-    inv = svc.create_invoice(
-        org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)])
-    )
+    inv = _invoice(svc, org_id, party_id, pid, _tax(db, org_id).id)
     assert inv.number.startswith("INV-")
     assert inv.status == DocumentStatus.DRAFT
     assert inv.subtotal == Decimal("200")
@@ -83,19 +93,33 @@ def test_invoice_numbers_increment(db):
     org_id, loc_id, party_id, pid = _setup(db)
     svc = DocumentService(db)
     tax = _tax(db, org_id)
-    a = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
-    b = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
+    a = _invoice(svc, org_id, party_id, pid, tax.id)
+    b = _invoice(svc, org_id, party_id, pid, tax.id)
     assert a.number == "INV-0001"
     assert b.number == "INV-0002"
+
+
+def test_sequences_are_per_type(db):
+    org_id, loc_id, party_id, pid = _setup(db, track=False)
+    vendor_id = _vendor(db, org_id)
+    svc = DocumentService(db)
+    tax = _tax(db, org_id)
+    inv = _invoice(svc, org_id, party_id, pid, tax.id)
+    bill = svc.create(
+        org_id, DocumentType.BILL, DocumentCreate(party_id=vendor_id, lines=[_line(pid, tax.id)])
+    )
+    assert inv.number == "INV-0001"
+    assert bill.number == "BILL-0001"
 
 
 def test_discount_and_exempt_rate(db):
     org_id, loc_id, party_id, pid = _setup(db)
     svc = DocumentService(db)
     exempt = _tax(db, org_id, "Exempt")
-    inv = svc.create_invoice(
+    inv = svc.create(
         org_id,
-        InvoiceCreate(
+        DocumentType.INVOICE,
+        DocumentCreate(
             party_id=party_id,
             lines=[_line(pid, exempt.id, qty=2, price=Decimal("100"), discount=Decimal("25"))],
         ),
@@ -109,9 +133,8 @@ def test_discount_and_exempt_rate(db):
 def test_create_invoice_unknown_party_raises(db):
     org_id, loc_id, party_id, pid = _setup(db)
     svc = DocumentService(db)
-    tax = _tax(db, org_id)
     with pytest.raises(NotFoundError):
-        svc.create_invoice(org_id, InvoiceCreate(party_id=999999, lines=[_line(pid, tax.id)]))
+        _invoice(svc, org_id, 999999, pid, _tax(db, org_id).id)
 
 
 def test_finalize_ships_stock(db):
@@ -120,11 +143,7 @@ def test_finalize_ships_stock(db):
         org_id, OpeningStockInput(product_id=pid, location_id=loc_id, quantity=Decimal(10))
     )
     svc = DocumentService(db)
-    tax = _tax(db, org_id)
-    inv = svc.create_invoice(
-        org_id,
-        InvoiceCreate(party_id=party_id, warehouse_id=loc_id, lines=[_line(pid, tax.id)]),
-    )
+    inv = _invoice(svc, org_id, party_id, pid, _tax(db, org_id).id, warehouse_id=loc_id)
     svc.finalize(org_id, inv.id)
     assert inv.status == DocumentStatus.SENT
     assert InventoryService(db).item_stock(org_id, pid).on_hand == Decimal(8)
@@ -137,11 +156,49 @@ def test_finalize_ships_stock(db):
     assert movement.unit_cost == Decimal("60")
 
 
+def test_bill_receives_stock(db):
+    org_id, loc_id, _, pid = _setup(db)
+    vendor_id = _vendor(db, org_id)
+    svc = DocumentService(db)
+    tax = _tax(db, org_id)
+    bill = svc.create(
+        org_id,
+        DocumentType.BILL,
+        DocumentCreate(
+            party_id=vendor_id,
+            warehouse_id=loc_id,
+            lines=[
+                DocumentLineInput(
+                    product_id=pid, description="Widget", quantity=Decimal(5),
+                    unit_price=Decimal("40"), tax_rate_id=tax.id,
+                )
+            ],
+        ),
+    )
+    assert bill.number == "BILL-0001"
+    svc.finalize(org_id, bill.id)
+    assert InventoryService(db).item_stock(org_id, pid).on_hand == Decimal(5)
+    movement = db.scalar(
+        select(StockMovement).where(
+            StockMovement.reference_type == "bill", StockMovement.reference_id == bill.id
+        )
+    )
+    assert movement.qty_delta == Decimal(5)
+    assert movement.unit_cost == Decimal("40")
+
+
+def test_get_of_type_guards(db):
+    org_id, loc_id, party_id, pid = _setup(db, track=False)
+    svc = DocumentService(db)
+    inv = _invoice(svc, org_id, party_id, pid, _tax(db, org_id).id)
+    with pytest.raises(NotFoundError):
+        svc.get_of_type(org_id, inv.id, DocumentType.BILL)
+
+
 def test_finalize_only_from_draft(db):
     org_id, loc_id, party_id, pid = _setup(db, track=False)
     svc = DocumentService(db)
-    tax = _tax(db, org_id)
-    inv = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
+    inv = _invoice(svc, org_id, party_id, pid, _tax(db, org_id).id)
     svc.finalize(org_id, inv.id)
     with pytest.raises(BadRequestError):
         svc.finalize(org_id, inv.id)
@@ -153,10 +210,7 @@ def test_void_reverses_stock(db):
         org_id, OpeningStockInput(product_id=pid, location_id=loc_id, quantity=Decimal(10))
     )
     svc = DocumentService(db)
-    tax = _tax(db, org_id)
-    inv = svc.create_invoice(
-        org_id, InvoiceCreate(party_id=party_id, warehouse_id=loc_id, lines=[_line(pid, tax.id)])
-    )
+    inv = _invoice(svc, org_id, party_id, pid, _tax(db, org_id).id, warehouse_id=loc_id)
     svc.finalize(org_id, inv.id)
     svc.void(org_id, inv.id)
     assert inv.status == DocumentStatus.VOID
@@ -167,21 +221,21 @@ def test_update_only_draft(db):
     org_id, loc_id, party_id, pid = _setup(db, track=False)
     svc = DocumentService(db)
     tax = _tax(db, org_id)
-    inv = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
-    svc.update_invoice(org_id, inv.id, InvoiceUpdate(lines=[_line(pid, tax.id, qty=5)]))
+    inv = _invoice(svc, org_id, party_id, pid, tax.id)
+    svc.update(org_id, inv.id, DocumentType.INVOICE, DocumentUpdate(lines=[_line(pid, tax.id, qty=5)]))
     assert inv.subtotal == Decimal("500")
     svc.finalize(org_id, inv.id)
     with pytest.raises(BadRequestError):
-        svc.update_invoice(org_id, inv.id, InvoiceUpdate(reference="X"))
+        svc.update(org_id, inv.id, DocumentType.INVOICE, DocumentUpdate(reference="X"))
 
 
 def test_delete_only_draft(db):
     org_id, loc_id, party_id, pid = _setup(db, track=False)
     svc = DocumentService(db)
     tax = _tax(db, org_id)
-    inv = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
+    inv = _invoice(svc, org_id, party_id, pid, tax.id)
     svc.delete(org_id, inv.id)
-    other = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
+    other = _invoice(svc, org_id, party_id, pid, tax.id)
     svc.finalize(org_id, other.id)
     with pytest.raises(BadRequestError):
         svc.delete(org_id, other.id)
@@ -191,12 +245,12 @@ def test_list_and_filter(db):
     org_id, loc_id, party_id, pid = _setup(db, track=False)
     svc = DocumentService(db)
     tax = _tax(db, org_id)
-    a = svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
-    svc.create_invoice(org_id, InvoiceCreate(party_id=party_id, lines=[_line(pid, tax.id)]))
+    a = _invoice(svc, org_id, party_id, pid, tax.id)
+    _invoice(svc, org_id, party_id, pid, tax.id)
     svc.finalize(org_id, a.id)
-    items, _, _ = svc.list_invoices(org_id, InvoiceListQuery())
+    items, _, _ = svc.list_documents(org_id, DocumentType.INVOICE, DocumentListQuery())
     assert len(items) == 2
-    drafts, _, _ = svc.list_invoices(org_id, InvoiceListQuery(status="draft"))
+    drafts, _, _ = svc.list_documents(org_id, DocumentType.INVOICE, DocumentListQuery(status="draft"))
     assert len(drafts) == 1
 
 

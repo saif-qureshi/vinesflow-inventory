@@ -4,6 +4,7 @@ from app.modules.attributes.models import Attribute, AttributeValue
 from app.modules.auth.models import RefreshSession
 from app.modules.categories.models import Category
 from app.modules.documents.models import (
+    Bill,
     Document,
     DocumentLine,
     DocumentSequence,

@@ -129,6 +129,13 @@ class Invoice(Document):
     movement_type = "sale"
 
 
+class Bill(Document):
+    __mapper_args__ = {"polymorphic_identity": DocumentType.BILL}
+
+    stock_direction = 1
+    movement_type = "purchase"
+
+
 class DocumentLine(Base, TimestampMixin):
     __tablename__ = "document_lines"
 

@@ -84,3 +84,45 @@ def test_tax_rates_and_sellable(client, db, register, org_id_of, h):
 def test_requires_auth(client):
     res = client.get("/api/v1/invoices")
     assert res.status_code == 401
+
+
+def test_bill_flow(client, db, register, org_id_of, h):
+    token = register()
+    org_id = org_id_of(token)
+    headers = h(token, org_id)
+    vendor = Party(org_id=org_id, is_vendor=True, name="Supplier")
+    product = Product(
+        org_id=org_id, name="Bolt", type="single", track_inventory=False,
+        purchase_price=Decimal("10"),
+    )
+    db.add_all([vendor, product])
+    db.flush()
+    tax = db.scalar(select(TaxRate).where(TaxRate.org_id == org_id, TaxRate.name == "GST 18%"))
+
+    res = client.post(
+        "/api/v1/bills",
+        headers=headers,
+        json={
+            "party_id": vendor.id,
+            "lines": [
+                {
+                    "product_id": product.id,
+                    "description": "Bolt",
+                    "quantity": 3,
+                    "unit_price": 10,
+                    "tax_rate_id": tax.id,
+                }
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    data = res.json()["data"]
+    assert data["number"].startswith("BILL-")
+    assert data["type"] == "bill"
+
+    fin = client.post(f"/api/v1/bills/{data['id']}/finalize", headers=headers)
+    assert fin.status_code == 200
+    assert fin.json()["data"]["status"] == "sent"
+
+    listed = client.get("/api/v1/bills", headers=headers)
+    assert len(listed.json()["data"]["items"]) == 1

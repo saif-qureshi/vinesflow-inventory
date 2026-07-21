@@ -11,6 +11,7 @@ from app.core.pagination import paginate_cursor
 from app.modules.activities.service import ActivityService
 from app.modules.documents.enums import DEFAULT_PREFIXES, DocumentStatus, DocumentType
 from app.modules.documents.models import (
+    Bill,
     Document,
     DocumentLine,
     DocumentSequence,
@@ -18,10 +19,10 @@ from app.modules.documents.models import (
     TaxRate,
 )
 from app.modules.documents.schemas import (
+    DocumentCreate,
     DocumentLineInput,
-    InvoiceCreate,
-    InvoiceListQuery,
-    InvoiceUpdate,
+    DocumentListQuery,
+    DocumentUpdate,
     SellableItemRead,
     TaxRateCreate,
 )
@@ -35,6 +36,19 @@ _CENTS = Decimal("0.01")
 _HUNDRED = Decimal("100")
 
 DEFAULT_TAX_RATES = [("GST 18%", Decimal("18")), ("Exempt", Decimal("0"))]
+
+DOCUMENT_CLASSES: dict[DocumentType, type[Document]] = {
+    DocumentType.INVOICE: Invoice,
+    DocumentType.BILL: Bill,
+}
+
+SALES_TYPES = {
+    DocumentType.SALES_ORDER,
+    DocumentType.DELIVERY_CHALLAN,
+    DocumentType.INVOICE,
+    DocumentType.SALES_RECEIPT,
+    DocumentType.CREDIT_NOTE,
+}
 
 
 def _q(value: Decimal) -> Decimal:
@@ -204,12 +218,11 @@ class DocumentService:
         doc.tax_total = tax_total
         doc.total = subtotal - discount_total + tax_total + doc.shipping + doc.adjustment
 
-    # --- Helpers ----------------------------------------------------------
-
-    def _get_party(self, org_id: int, party_id: int) -> Party:
+    def _get_party(self, org_id: int, party_id: int, doc_type: DocumentType) -> Party:
         party = self.db.scalar(select(Party).where(Party.id == party_id, Party.org_id == org_id))
         if party is None:
-            raise NotFoundError("Customer not found")
+            label = "Customer" if doc_type in SALES_TYPES else "Vendor"
+            raise NotFoundError(f"{label} not found")
         return party
 
     def _default_location(self, org_id: int) -> int | None:
@@ -232,14 +245,19 @@ class DocumentService:
             raise NotFoundError("Document not found")
         return doc
 
-    # --- Invoices ---------------------------------------------------------
+    def get_of_type(self, org_id: int, doc_id: int, doc_type: DocumentType) -> Document:
+        doc = self.get(org_id, doc_id)
+        if doc.type != doc_type:
+            raise NotFoundError("Document not found")
+        return doc
 
-    def create_invoice(self, org_id: int, payload: InvoiceCreate) -> Document:
-        party = self._get_party(org_id, payload.party_id)
+    def create(self, org_id: int, doc_type: DocumentType, payload: DocumentCreate) -> Document:
+        doc_cls = DOCUMENT_CLASSES[doc_type]
+        party = self._get_party(org_id, payload.party_id, doc_type)
         issue_date = payload.issue_date or date.today()
-        doc = Invoice(
+        doc = doc_cls(
             org_id=org_id,
-            number=self._next_number(org_id, DocumentType.INVOICE),
+            number=self._next_number(org_id, doc_type),
             status=DocumentStatus.DRAFT,
             party_id=party.id,
             warehouse_id=payload.warehouse_id,
@@ -258,17 +276,15 @@ class DocumentService:
         self._apply_totals(doc, subtotal, discount_total, tax_total)
         self.db.add(doc)
         self.db.flush()
-        self.activity.record(org_id, "created", "invoice", doc.number, entity_id=doc.id)
+        self.activity.record(org_id, "created", doc_type, doc.number, entity_id=doc.id)
         self.db.commit()
         self.db.refresh(doc)
         return doc
 
-    def list_invoices(
-        self, org_id: int, query: InvoiceListQuery
+    def list_documents(
+        self, org_id: int, doc_type: DocumentType, query: DocumentListQuery
     ) -> tuple[list[Document], str | None, bool]:
-        stmt = select(Document).where(
-            Document.org_id == org_id, Document.type == DocumentType.INVOICE
-        )
+        stmt = select(Document).where(Document.org_id == org_id, Document.type == doc_type)
         if query.status:
             stmt = stmt.where(Document.status == query.status)
         if query.party_id is not None:
@@ -278,19 +294,15 @@ class DocumentService:
             stmt = stmt.where(or_(Document.number.ilike(like), Document.reference.ilike(like)))
         return paginate_cursor(self.db, stmt, Document.id, query)
 
-    def get_invoice(self, org_id: int, doc_id: int) -> Document:
-        doc = self.get(org_id, doc_id)
-        if doc.type != DocumentType.INVOICE:
-            raise NotFoundError("Invoice not found")
-        return doc
-
-    def update_invoice(self, org_id: int, doc_id: int, payload: InvoiceUpdate) -> Document:
-        doc = self.get_invoice(org_id, doc_id)
+    def update(
+        self, org_id: int, doc_id: int, doc_type: DocumentType, payload: DocumentUpdate
+    ) -> Document:
+        doc = self.get_of_type(org_id, doc_id, doc_type)
         if doc.status != DocumentStatus.DRAFT:
-            raise BadRequestError("Only draft invoices can be edited")
+            raise BadRequestError("Only draft documents can be edited")
         fields = payload.model_fields_set
         if "party_id" in fields and payload.party_id is not None:
-            party = self._get_party(org_id, payload.party_id)
+            party = self._get_party(org_id, payload.party_id, doc_type)
             doc.party_id = party.id
             doc.billing_address = party.billing_address
             doc.shipping_address = party.shipping_address
@@ -307,13 +319,17 @@ class DocumentService:
             self._apply_totals(doc, subtotal, discount_total, tax_total)
         else:
             self._apply_totals(doc, doc.subtotal, doc.discount_total, doc.tax_total)
-        self.activity.record(org_id, "updated", "invoice", doc.number, entity_id=doc.id)
+        self.activity.record(org_id, "updated", doc_type, doc.number, entity_id=doc.id)
         self.db.commit()
         self.db.refresh(doc)
         return doc
 
-    def finalize(self, org_id: int, doc_id: int) -> Document:
+    def finalize(
+        self, org_id: int, doc_id: int, expected_type: DocumentType | None = None
+    ) -> Document:
         doc = self.get(org_id, doc_id)
+        if expected_type and doc.type != expected_type:
+            raise NotFoundError("Document not found")
         if doc.status != DocumentStatus.DRAFT:
             raise BadRequestError("Only draft documents can be finalized")
         if not doc.lines:
@@ -330,8 +346,12 @@ class DocumentService:
         self.db.refresh(doc)
         return doc
 
-    def void(self, org_id: int, doc_id: int) -> Document:
+    def void(
+        self, org_id: int, doc_id: int, expected_type: DocumentType | None = None
+    ) -> Document:
         doc = self.get(org_id, doc_id)
+        if expected_type and doc.type != expected_type:
+            raise NotFoundError("Document not found")
         if doc.status in (DocumentStatus.DRAFT, DocumentStatus.VOID):
             raise BadRequestError("Only a finalized document can be voided")
         if doc.amount_paid > _ZERO:
@@ -343,8 +363,10 @@ class DocumentService:
         self.db.refresh(doc)
         return doc
 
-    def delete(self, org_id: int, doc_id: int) -> None:
+    def delete(self, org_id: int, doc_id: int, expected_type: DocumentType | None = None) -> None:
         doc = self.get(org_id, doc_id)
+        if expected_type and doc.type != expected_type:
+            raise NotFoundError("Document not found")
         if doc.status != DocumentStatus.DRAFT:
             raise BadRequestError("Only draft documents can be deleted")
         self.activity.record(org_id, "deleted", doc.type, doc.number, entity_id=doc.id)
@@ -368,6 +390,7 @@ class DocumentService:
             product = products.get(line.product_id)
             if product is None or not product.track_inventory:
                 continue
+            unit_cost = line.unit_price if doc.stock_direction > 0 else product.purchase_price
             self.inventory.post_document_movement(
                 org_id=org_id,
                 product_id=line.product_id,
@@ -376,5 +399,5 @@ class DocumentService:
                 type_=doc.movement_type,
                 reference_type=doc.type,
                 reference_id=doc.id,
-                unit_cost=product.purchase_price,
+                unit_cost=unit_cost,
             )

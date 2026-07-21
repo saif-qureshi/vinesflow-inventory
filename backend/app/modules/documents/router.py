@@ -4,16 +4,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import require_permission
+from app.api.deps import CurrentMembership, require_permission
 from app.core.container import Provide
 from app.core.pagination import CursorPage
 from app.core.responses import EnvelopeRoute
+from app.modules.documents.enums import DocumentType
 from app.modules.documents.schemas import (
-    InvoiceCreate,
-    InvoiceListItem,
-    InvoiceListQuery,
-    InvoiceRead,
-    InvoiceUpdate,
+    DocumentCreate,
+    DocumentListItem,
+    DocumentListQuery,
+    DocumentRead,
+    DocumentUpdate,
     SellableItemRead,
     TaxRateCreate,
     TaxRateRead,
@@ -26,10 +27,7 @@ Svc = Depends(Provide(DocumentService))
 
 
 @router.get("/tax-rates", response_model=list[TaxRateRead])
-def list_tax_rates(
-    membership: Membership = Depends(require_permission("invoices:read")),
-    svc: DocumentService = Svc,
-):
+def list_tax_rates(membership: CurrentMembership, svc: DocumentService = Svc):
     return svc.list_tax_rates(membership.org_id)
 
 
@@ -44,73 +42,69 @@ def create_tax_rate(
 
 @router.get("/sellable-items", response_model=list[SellableItemRead])
 def sellable_items(
+    membership: CurrentMembership,
     search: str | None = None,
-    membership: Membership = Depends(require_permission("invoices:read")),
+    limit: int = Query(default=50, ge=1, le=100),
     svc: DocumentService = Svc,
 ):
-    return svc.sellable_items(membership.org_id, search, 20)
+    return svc.sellable_items(membership.org_id, search, limit)
 
 
-@router.get("/invoices", response_model=CursorPage[InvoiceListItem])
-def list_invoices(
-    query: Annotated[InvoiceListQuery, Query()],
-    membership: Membership = Depends(require_permission("invoices:read")),
-    svc: DocumentService = Svc,
-):
-    items, next_cursor, has_more = svc.list_invoices(membership.org_id, query)
-    return {"items": items, "next_cursor": next_cursor, "has_more": has_more}
+def register_document_routes(path: str, doc_type: DocumentType, module: str) -> None:
+    read = Depends(require_permission(f"{module}:read"))
+    make = Depends(require_permission(f"{module}:create"))
+    edit = Depends(require_permission(f"{module}:update"))
+    drop = Depends(require_permission(f"{module}:delete"))
+
+    @router.get(f"/{path}", response_model=CursorPage[DocumentListItem], name=f"list_{path}")
+    def _list(
+        query: Annotated[DocumentListQuery, Query()],
+        membership: Membership = read,
+        svc: DocumentService = Svc,
+    ):
+        items, next_cursor, has_more = svc.list_documents(membership.org_id, doc_type, query)
+        return {"items": items, "next_cursor": next_cursor, "has_more": has_more}
+
+    @router.post(
+        f"/{path}",
+        response_model=DocumentRead,
+        status_code=status.HTTP_201_CREATED,
+        name=f"create_{path}",
+    )
+    def _create(
+        payload: DocumentCreate, membership: Membership = make, svc: DocumentService = Svc
+    ):
+        return svc.create(membership.org_id, doc_type, payload)
+
+    @router.get(f"/{path}/{{doc_id}}", response_model=DocumentRead, name=f"get_{path}")
+    def _get(doc_id: int, membership: Membership = read, svc: DocumentService = Svc):
+        return svc.get_of_type(membership.org_id, doc_id, doc_type)
+
+    @router.patch(f"/{path}/{{doc_id}}", response_model=DocumentRead, name=f"update_{path}")
+    def _update(
+        doc_id: int,
+        payload: DocumentUpdate,
+        membership: Membership = edit,
+        svc: DocumentService = Svc,
+    ):
+        return svc.update(membership.org_id, doc_id, doc_type, payload)
+
+    @router.post(
+        f"/{path}/{{doc_id}}/finalize", response_model=DocumentRead, name=f"finalize_{path}"
+    )
+    def _finalize(doc_id: int, membership: Membership = edit, svc: DocumentService = Svc):
+        return svc.finalize(membership.org_id, doc_id, doc_type)
+
+    @router.post(f"/{path}/{{doc_id}}/void", response_model=DocumentRead, name=f"void_{path}")
+    def _void(doc_id: int, membership: Membership = edit, svc: DocumentService = Svc):
+        return svc.void(membership.org_id, doc_id, doc_type)
+
+    @router.delete(
+        f"/{path}/{{doc_id}}", status_code=status.HTTP_204_NO_CONTENT, name=f"delete_{path}"
+    )
+    def _delete(doc_id: int, membership: Membership = drop, svc: DocumentService = Svc) -> None:
+        svc.delete(membership.org_id, doc_id, doc_type)
 
 
-@router.post("/invoices", response_model=InvoiceRead, status_code=status.HTTP_201_CREATED)
-def create_invoice(
-    payload: InvoiceCreate,
-    membership: Membership = Depends(require_permission("invoices:create")),
-    svc: DocumentService = Svc,
-):
-    return svc.create_invoice(membership.org_id, payload)
-
-
-@router.get("/invoices/{doc_id}", response_model=InvoiceRead)
-def get_invoice(
-    doc_id: int,
-    membership: Membership = Depends(require_permission("invoices:read")),
-    svc: DocumentService = Svc,
-):
-    return svc.get_invoice(membership.org_id, doc_id)
-
-
-@router.patch("/invoices/{doc_id}", response_model=InvoiceRead)
-def update_invoice(
-    doc_id: int,
-    payload: InvoiceUpdate,
-    membership: Membership = Depends(require_permission("invoices:update")),
-    svc: DocumentService = Svc,
-):
-    return svc.update_invoice(membership.org_id, doc_id, payload)
-
-
-@router.post("/invoices/{doc_id}/finalize", response_model=InvoiceRead)
-def finalize_invoice(
-    doc_id: int,
-    membership: Membership = Depends(require_permission("invoices:update")),
-    svc: DocumentService = Svc,
-):
-    return svc.finalize(membership.org_id, doc_id)
-
-
-@router.post("/invoices/{doc_id}/void", response_model=InvoiceRead)
-def void_invoice(
-    doc_id: int,
-    membership: Membership = Depends(require_permission("invoices:update")),
-    svc: DocumentService = Svc,
-):
-    return svc.void(membership.org_id, doc_id)
-
-
-@router.delete("/invoices/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_invoice(
-    doc_id: int,
-    membership: Membership = Depends(require_permission("invoices:delete")),
-    svc: DocumentService = Svc,
-) -> None:
-    svc.delete(membership.org_id, doc_id)
+register_document_routes("invoices", DocumentType.INVOICE, "invoices")
+register_document_routes("bills", DocumentType.BILL, "bills")

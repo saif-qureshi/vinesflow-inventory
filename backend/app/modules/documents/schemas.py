@@ -17,7 +17,7 @@ class DocumentLineInput(BaseModel):
     tax_rate_id: int | None = None
 
 
-class InvoiceCreate(BaseModel):
+class DocumentCreate(BaseModel):
     party_id: int
     issue_date: date | None = None
     due_date: date | None = None
@@ -30,7 +30,7 @@ class InvoiceCreate(BaseModel):
     lines: list[DocumentLineInput] = Field(min_length=1)
 
 
-class InvoiceUpdate(BaseModel):
+class DocumentUpdate(BaseModel):
     party_id: int | None = None
     issue_date: date | None = None
     due_date: date | None = None
@@ -66,7 +66,7 @@ class DocumentLineRead(BaseModel):
     sort_order: int
 
 
-class InvoiceRead(BaseModel):
+class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -98,7 +98,7 @@ class InvoiceRead(BaseModel):
     lines: list[DocumentLineRead]
 
 
-class InvoiceListItem(BaseModel):
+class DocumentListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -113,7 +113,7 @@ class InvoiceListItem(BaseModel):
     party: PartySummary | None = None
 
 
-class InvoiceListQuery(ListQuery):
+class DocumentListQuery(ListQuery):
     status: str | None = None
     party_id: int | None = None
 
