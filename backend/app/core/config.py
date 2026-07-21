@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     ENVIRONMENT: str = "development"
 
-    DATABASE_URL: str = "postgresql+psycopg://vineflow:vineflow@localhost:5432/vineflow"
+    DATABASE_URL: str = "postgresql+psycopg://vineflow:vineflow@localhost:5433/vineflow"
 
     JWT_SECRET: str = "change-me-to-a-long-random-string"
     JWT_ALGORITHM: str = "HS256"
@@ -26,12 +26,12 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_SAMESITE: str = "lax"
     REFRESH_COOKIE_DOMAIN: str | None = None
 
-    BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3005"]
 
     # Media storage: "local" (dev, served from disk) or "s3".
     STORAGE_BACKEND: str = "local"
     MEDIA_LOCAL_DIR: str = "media_storage"
-    MEDIA_PUBLIC_URL: str = "http://localhost:8000"
+    MEDIA_PUBLIC_URL: str = "http://localhost:8005"
     MAX_UPLOAD_MB: int = 5
     S3_BUCKET: str | None = None
     S3_REGION: str | None = None

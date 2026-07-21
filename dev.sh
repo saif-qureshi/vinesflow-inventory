@@ -12,7 +12,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
-DB_HOST_PORT="${DB_HOST_PORT:-5432}"
+DB_HOST_PORT="${DB_HOST_PORT:-5433}"
+BACKEND_PORT="${BACKEND_PORT:-8005}"
+FRONTEND_PORT="${FRONTEND_PORT:-3005}"
 
 SEED=0
 [ "${1:-}" = "--seed" ] && SEED=1
@@ -55,11 +57,11 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
-(cd "$BACKEND" && exec uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000) &
+(cd "$BACKEND" && exec uv run uvicorn app.main:app --reload --host 127.0.0.1 --port "$BACKEND_PORT") &
 pids+=($!)
-(cd "$FRONTEND" && exec pnpm dev) &
+(cd "$FRONTEND" && PORT="$FRONTEND_PORT" exec pnpm dev) &
 pids+=($!)
 
-log "Backend  -> http://localhost:8000/docs"
-log "Frontend -> http://localhost:3000"
+log "Backend  -> http://localhost:${BACKEND_PORT}/docs"
+log "Frontend -> http://localhost:${FRONTEND_PORT}"
 wait

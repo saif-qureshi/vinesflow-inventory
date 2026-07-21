@@ -8,7 +8,7 @@ import axios, {
 import { useSessionStore } from "@/stores/session";
 import type { ApiEnvelope } from "@/types";
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const baseURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8005/api/v1";
 
 function unwrap(res: AxiosResponse): AxiosResponse {
   const body = res.data;
