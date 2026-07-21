@@ -1,7 +1,8 @@
 "use client";
 
-import { InvoiceForm } from "../InvoiceForm";
+import { DocumentForm } from "@/components/documents/DocumentForm";
+import { INVOICE_CONFIG } from "@/lib/documentKinds";
 
 export default function NewInvoicePage() {
-  return <InvoiceForm />;
+  return <DocumentForm config={INVOICE_CONFIG} />;
 }

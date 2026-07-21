@@ -1,6 +1,6 @@
 import type { Address } from "./party";
 
-export type InvoiceStatus = "draft" | "sent" | "partially_paid" | "paid" | "void";
+export type DocumentStatus = "draft" | "sent" | "partially_paid" | "paid" | "void";
 
 export interface DocumentParty {
   id: number;
@@ -21,11 +21,11 @@ export interface DocumentLine {
   sort_order: number;
 }
 
-export interface Invoice {
+export interface DocumentRecord {
   id: number;
   type: string;
   number: string;
-  status: InvoiceStatus;
+  status: DocumentStatus;
   party_id: number | null;
   party: DocumentParty | null;
   warehouse_id: number | null;
@@ -51,10 +51,10 @@ export interface Invoice {
   lines: DocumentLine[];
 }
 
-export interface InvoiceListItem {
+export interface DocumentSummary {
   id: number;
   number: string;
-  status: InvoiceStatus;
+  status: DocumentStatus;
   issue_date: string;
   due_date: string | null;
   currency: string;
@@ -73,7 +73,7 @@ export interface DocumentLineInput {
   tax_rate_id?: number | null;
 }
 
-export interface InvoiceInput {
+export interface DocumentInput {
   party_id: number;
   issue_date?: string | null;
   due_date?: string | null;

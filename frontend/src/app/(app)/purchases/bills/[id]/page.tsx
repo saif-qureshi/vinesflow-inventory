@@ -3,9 +3,9 @@
 import { useParams } from "next/navigation";
 
 import { DocumentView } from "@/components/documents/DocumentView";
-import { INVOICE_CONFIG } from "@/lib/documentKinds";
+import { BILL_CONFIG } from "@/lib/documentKinds";
 
-export default function ViewInvoicePage() {
+export default function ViewBillPage() {
   const { id } = useParams<{ id: string }>();
-  return <DocumentView config={INVOICE_CONFIG} id={Number(id)} />;
+  return <DocumentView config={BILL_CONFIG} id={Number(id)} />;
 }

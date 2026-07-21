@@ -3,13 +3,13 @@ export type { ApiEnvelope, ApiError } from "./api";
 export type { AccessToken, Me } from "./auth";
 export type { Category, CategorySummary } from "./category";
 export type {
+  DocumentInput,
   DocumentLine,
   DocumentLineInput,
   DocumentParty,
-  Invoice,
-  InvoiceInput,
-  InvoiceListItem,
-  InvoiceStatus,
+  DocumentRecord,
+  DocumentStatus,
+  DocumentSummary,
   SellableItem,
   TaxRate,
 } from "./document";

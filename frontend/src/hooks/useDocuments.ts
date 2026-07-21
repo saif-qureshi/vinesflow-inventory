@@ -10,38 +10,38 @@ import {
 import { api } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import type {
-  Invoice,
-  InvoiceInput,
-  InvoiceListItem,
-  InvoiceStatus,
+  DocumentInput,
+  DocumentRecord,
+  DocumentStatus,
+  DocumentSummary,
   SellableItem,
   TaxRate,
 } from "@/types";
 
-interface InvoicePage {
-  items: InvoiceListItem[];
+interface DocumentPage {
+  items: DocumentSummary[];
   next_cursor: string | null;
   has_more: boolean;
 }
 
-export interface InvoiceFilters {
+export interface DocumentFilters {
   search?: string;
-  status?: InvoiceStatus | null;
+  status?: DocumentStatus | null;
   party_id?: number | null;
 }
 
-export function useInvoices(filters: InvoiceFilters = {}, limit = 25) {
+export function useDocumentList(apiPath: string, filters: DocumentFilters = {}, limit = 25) {
   const token = useSessionStore((s) => s.accessToken);
   const orgId = useSessionStore((s) => s.currentOrgId);
   return useInfiniteQuery({
-    queryKey: ["invoices", orgId, filters],
+    queryKey: [apiPath, orgId, filters],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: String(limit) });
       if (pageParam) params.set("cursor", pageParam as string);
       if (filters.search) params.set("search", filters.search);
       if (filters.status) params.set("status", filters.status);
       if (filters.party_id != null) params.set("party_id", String(filters.party_id));
-      return (await api.get<InvoicePage>(`/invoices?${params.toString()}`)).data;
+      return (await api.get<DocumentPage>(`/${apiPath}?${params.toString()}`)).data;
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => (last.has_more ? last.next_cursor : undefined),
@@ -49,65 +49,65 @@ export function useInvoices(filters: InvoiceFilters = {}, limit = 25) {
   });
 }
 
-export function useInvoice(id: number | null) {
+export function useDocument(apiPath: string, id: number | null) {
   const token = useSessionStore((s) => s.accessToken);
   const orgId = useSessionStore((s) => s.currentOrgId);
   return useQuery({
-    queryKey: ["invoice", orgId, id],
-    queryFn: async () => (await api.get<Invoice>(`/invoices/${id}`)).data,
+    queryKey: [apiPath, "one", orgId, id],
+    queryFn: async () => (await api.get<DocumentRecord>(`/${apiPath}/${id}`)).data,
     enabled: !!token && !!orgId && !!id,
   });
 }
 
-function useInvalidate() {
+function useInvalidate(apiPath: string) {
   const qc = useQueryClient();
   const orgId = useSessionStore((s) => s.currentOrgId);
   return (id?: number) => {
-    qc.invalidateQueries({ queryKey: ["invoices", orgId] });
-    if (id) qc.invalidateQueries({ queryKey: ["invoice", orgId, id] });
+    qc.invalidateQueries({ queryKey: [apiPath, orgId] });
+    if (id) qc.invalidateQueries({ queryKey: [apiPath, "one", orgId, id] });
     qc.invalidateQueries({ queryKey: ["inventory", orgId] });
   };
 }
 
-export function useCreateInvoice() {
-  const invalidate = useInvalidate();
+export function useCreateDocument(apiPath: string) {
+  const invalidate = useInvalidate(apiPath);
   return useMutation({
-    mutationFn: async (payload: InvoiceInput) =>
-      (await api.post<Invoice>("/invoices", payload)).data,
+    mutationFn: async (payload: DocumentInput) =>
+      (await api.post<DocumentRecord>(`/${apiPath}`, payload)).data,
     onSuccess: () => invalidate(),
   });
 }
 
-export function useUpdateInvoice() {
-  const invalidate = useInvalidate();
+export function useUpdateDocument(apiPath: string) {
+  const invalidate = useInvalidate(apiPath);
   return useMutation({
-    mutationFn: async (vars: { id: number; payload: Partial<InvoiceInput> }) =>
-      (await api.patch<Invoice>(`/invoices/${vars.id}`, vars.payload)).data,
+    mutationFn: async (vars: { id: number; payload: Partial<DocumentInput> }) =>
+      (await api.patch<DocumentRecord>(`/${apiPath}/${vars.id}`, vars.payload)).data,
     onSuccess: (_res, vars) => invalidate(vars.id),
   });
 }
 
-export function useFinalizeInvoice() {
-  const invalidate = useInvalidate();
+export function useFinalizeDocument(apiPath: string) {
+  const invalidate = useInvalidate(apiPath);
   return useMutation({
     mutationFn: async (id: number) =>
-      (await api.post<Invoice>(`/invoices/${id}/finalize`)).data,
+      (await api.post<DocumentRecord>(`/${apiPath}/${id}/finalize`)).data,
     onSuccess: (_res, id) => invalidate(id),
   });
 }
 
-export function useVoidInvoice() {
-  const invalidate = useInvalidate();
+export function useVoidDocument(apiPath: string) {
+  const invalidate = useInvalidate(apiPath);
   return useMutation({
-    mutationFn: async (id: number) => (await api.post<Invoice>(`/invoices/${id}/void`)).data,
+    mutationFn: async (id: number) => (await api.post<DocumentRecord>(`/${apiPath}/${id}/void`)).data,
     onSuccess: (_res, id) => invalidate(id),
   });
 }
 
-export function useDeleteInvoice() {
-  const invalidate = useInvalidate();
+export function useDeleteDocument(apiPath: string) {
+  const invalidate = useInvalidate(apiPath);
   return useMutation({
-    mutationFn: (id: number) => api.delete(`/invoices/${id}`),
+    mutationFn: (id: number) => api.delete(`/${apiPath}/${id}`),
     onSuccess: () => invalidate(),
   });
 }

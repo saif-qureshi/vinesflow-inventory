@@ -20,15 +20,16 @@ import {
 } from "@/components/ui";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
-  useCreateInvoice,
+  useCreateDocument,
   useSellableItems,
   useTaxRates,
-  useUpdateInvoice,
-} from "@/hooks/useInvoices";
+  useUpdateDocument,
+} from "@/hooks/useDocuments";
 import { useParties } from "@/hooks/useParties";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { apiErrorMessage } from "@/lib/api";
-import type { Invoice, InvoiceInput } from "@/types";
+import type { DocumentKindConfig } from "@/lib/documentKinds";
+import type { DocumentInput, DocumentRecord } from "@/types";
 
 interface LineRow {
   key: string;
@@ -65,23 +66,29 @@ const emptyLine = (): LineRow => ({
   tax_rate_id: null,
 });
 
-export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
+export function DocumentForm({
+  config,
+  document,
+}: {
+  config: DocumentKindConfig;
+  document?: DocumentRecord;
+}) {
   const router = useRouter();
   const { message } = App.useApp();
   const { currency, money } = useCurrency();
   const [form] = Form.useForm<FormValues>();
-  const create = useCreateInvoice();
-  const update = useUpdateInvoice();
+  const create = useCreateDocument(config.apiPath);
+  const update = useUpdateDocument(config.apiPath);
 
   const { data: taxRates } = useTaxRates();
   const { data: warehouses } = useWarehouses();
   const [itemSearch, setItemSearch] = useState("");
   const { data: sellable } = useSellableItems(itemSearch);
-  const customers = useParties("customer");
+  const parties = useParties(config.partyRole);
 
   const [lines, setLines] = useState<LineRow[]>(() =>
-    invoice?.lines.length
-      ? invoice.lines.map((l) => ({
+    document?.lines.length
+      ? document.lines.map((l) => ({
           key: newKey(),
           product_id: l.product_id,
           description: l.description,
@@ -92,16 +99,16 @@ export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
         }))
       : [emptyLine()],
   );
-  const [shipping, setShipping] = useState(Number(invoice?.shipping ?? 0));
-  const [adjustment, setAdjustment] = useState(Number(invoice?.adjustment ?? 0));
+  const [shipping, setShipping] = useState(Number(document?.shipping ?? 0));
+  const [adjustment, setAdjustment] = useState(Number(document?.adjustment ?? 0));
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([]);
   const [focusKey, setFocusKey] = useState<string | null>(null);
 
-  const isEdit = !!invoice;
+  const isEdit = !!document;
   const saving = create.isPending || update.isPending;
-  const backHref = isEdit ? `/sales/invoices/${invoice.id}` : "/sales/invoices";
+  const backHref = isEdit ? `${config.basePath}/${document.id}` : config.basePath;
 
-  const customerOptions = (customers.data?.pages.flatMap((p) => p.items) ?? []).map((c) => ({
+  const partyOptions = (parties.data?.pages.flatMap((p) => p.items) ?? []).map((c) => ({
     value: c.id,
     label: c.name,
   }));
@@ -163,10 +170,11 @@ export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
 
   const pickItem = (key: string, productId: number) => {
     const item = (sellable ?? []).find((i) => i.id === productId);
+    const price = item ? item[config.priceField] : null;
     patchLine(key, {
       product_id: productId,
       description: item?.name ?? "",
-      unit_price: item?.sale_price != null ? Number(item.sale_price) : 0,
+      unit_price: price != null ? Number(price) : 0,
     });
     setItemSearch("");
   };
@@ -310,7 +318,7 @@ export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
       message.error("Add at least one line item");
       return;
     }
-    const payload: InvoiceInput = {
+    const payload: DocumentInput = {
       party_id: values.party_id,
       issue_date: values.issue_date.format("YYYY-MM-DD"),
       due_date: values.due_date ? values.due_date.format("YYYY-MM-DD") : null,
@@ -331,10 +339,10 @@ export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
     };
     try {
       const saved = isEdit
-        ? await update.mutateAsync({ id: invoice.id, payload })
+        ? await update.mutateAsync({ id: document.id, payload })
         : await create.mutateAsync(payload);
-      message.success(isEdit ? "Invoice updated" : "Invoice created");
-      router.push(`/sales/invoices/${saved.id}`);
+      message.success(`${config.labels.singular} ${isEdit ? "updated" : "created"}`);
+      router.push(`${config.basePath}/${saved.id}`);
     } catch (err) {
       message.error(apiErrorMessage(err));
     }
@@ -346,49 +354,49 @@ export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
       layout="vertical"
       onFinish={submit}
       initialValues={{
-        party_id: invoice?.party_id ?? undefined,
-        issue_date: invoice ? dayjs(invoice.issue_date) : dayjs(),
-        due_date: invoice?.due_date ? dayjs(invoice.due_date) : null,
-        reference: invoice?.reference ?? undefined,
-        warehouse_id: invoice?.warehouse_id ?? undefined,
-        notes: invoice?.notes ?? undefined,
-        terms: invoice?.terms ?? undefined,
+        party_id: document?.party_id ?? undefined,
+        issue_date: document ? dayjs(document.issue_date) : dayjs(),
+        due_date: document?.due_date ? dayjs(document.due_date) : null,
+        reference: document?.reference ?? undefined,
+        warehouse_id: document?.warehouse_id ?? undefined,
+        notes: document?.notes ?? undefined,
+        terms: document?.terms ?? undefined,
       }}
       className="flex flex-col gap-6 pb-24"
     >
       <Typography.Title level={3} className="!mb-0">
-        {isEdit ? `Edit ${invoice.number}` : "New Invoice"}
+        {isEdit ? `Edit ${document.number}` : config.labels.newAction}
       </Typography.Title>
 
       <Card className="border-gray-100">
         <div className="grid grid-cols-1 gap-x-6 md:grid-cols-3">
           <Form.Item
             name="party_id"
-            label="Customer"
-            rules={[{ required: true, message: "Customer is required" }]}
+            label={config.labels.party}
+            rules={[{ required: true, message: `${config.labels.party} is required` }]}
           >
             <Select
-              options={customerOptions}
-              placeholder="Select customer"
+              options={partyOptions}
+              placeholder={`Select ${config.labels.party.toLowerCase()}`}
               showSearch
               optionFilterProp="label"
-              loading={customers.isLoading}
+              loading={parties.isLoading}
             />
           </Form.Item>
           <Form.Item
             name="issue_date"
-            label="Invoice date"
-            rules={[{ required: true, message: "Invoice date is required" }]}
+            label={config.labels.dateLabel}
+            rules={[{ required: true, message: `${config.labels.dateLabel} is required` }]}
           >
             <DatePicker className="!w-full" format="DD MMM YYYY" />
           </Form.Item>
           <Form.Item name="due_date" label="Due date">
             <DatePicker className="!w-full" format="DD MMM YYYY" />
           </Form.Item>
-          <Form.Item name="reference" label="Reference">
-            <Input placeholder="Customer PO / reference" />
+          <Form.Item name="reference" label={config.labels.referenceLabel}>
+            <Input placeholder={config.labels.referencePlaceholder} />
           </Form.Item>
-          <Form.Item name="warehouse_id" label="Warehouse" extra="Stock ships from here">
+          <Form.Item name="warehouse_id" label="Warehouse" extra={config.labels.warehouseHint}>
             <Select
               options={(warehouses ?? []).map((w) => ({ value: w.id, label: w.name }))}
               placeholder="Default warehouse"
@@ -466,7 +474,7 @@ export function InvoiceForm({ invoice }: { invoice?: Invoice }) {
       <Card title="Notes & Terms" className="border-gray-100">
         <div className="grid grid-cols-1 gap-x-6 md:grid-cols-2">
           <Form.Item name="notes" label="Notes">
-            <TextArea rows={3} placeholder="Notes visible to the customer" />
+            <TextArea rows={3} placeholder="Notes" />
           </Form.Item>
           <Form.Item name="terms" label="Terms & conditions">
             <TextArea rows={3} placeholder="Payment terms" />
