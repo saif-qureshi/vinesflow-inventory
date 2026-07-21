@@ -9,6 +9,7 @@ from app.modules.orgs.models import Membership, Organization
 from app.modules.orgs.schemas import MemberAdd, MemberUpdate, OrgCreate, OrgUpdate
 from app.modules.rbac.constants import ALL_PERMISSION_CODES, OWNER_ROLE_SLUG
 from app.modules.activities.service import ActivityService
+from app.modules.documents.service import DocumentService
 from app.modules.inventory.service import InventoryService
 from app.modules.locations.service import LocationService
 from app.modules.rbac.models import Role
@@ -54,6 +55,9 @@ class OrgService:
         UomService(self.db).seed_defaults(org.id)
         LocationService(self.db).seed_default(org.id)
         InventoryService(self.db).seed_reasons(org.id)
+        document_service = DocumentService(self.db)
+        document_service.seed_tax_rates(org.id)
+        document_service.seed_sequences(org.id)
         self.db.flush()
         return org
 

@@ -2,6 +2,17 @@ export type { Activity, ActivityActor } from "./activity";
 export type { ApiEnvelope, ApiError } from "./api";
 export type { AccessToken, Me } from "./auth";
 export type { Category, CategorySummary } from "./category";
+export type {
+  DocumentLine,
+  DocumentLineInput,
+  DocumentParty,
+  Invoice,
+  InvoiceInput,
+  InvoiceListItem,
+  InvoiceStatus,
+  SellableItem,
+  TaxRate,
+} from "./document";
 export type { Media, MediaInput } from "./media";
 export type {
   InventoryItem,

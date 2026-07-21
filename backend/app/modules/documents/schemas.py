@@ -1,0 +1,145 @@
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.pagination import ListQuery
+
+
+class DocumentLineInput(BaseModel):
+    product_id: int | None = None
+    description: str = Field(min_length=1, max_length=500)
+    quantity: Decimal = Field(gt=0)
+    unit_price: Decimal = Field(ge=0)
+    discount: Decimal = Field(default=Decimal("0"), ge=0)
+    tax_rate_id: int | None = None
+
+
+class InvoiceCreate(BaseModel):
+    party_id: int
+    issue_date: date | None = None
+    due_date: date | None = None
+    reference: str | None = Field(default=None, max_length=100)
+    warehouse_id: int | None = None
+    notes: str | None = None
+    terms: str | None = None
+    shipping: Decimal = Field(default=Decimal("0"), ge=0)
+    adjustment: Decimal = Field(default=Decimal("0"))
+    lines: list[DocumentLineInput] = Field(min_length=1)
+
+
+class InvoiceUpdate(BaseModel):
+    party_id: int | None = None
+    issue_date: date | None = None
+    due_date: date | None = None
+    reference: str | None = None
+    warehouse_id: int | None = None
+    notes: str | None = None
+    terms: str | None = None
+    shipping: Decimal | None = None
+    adjustment: Decimal | None = None
+    lines: list[DocumentLineInput] | None = None
+
+
+class PartySummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    email: str | None = None
+
+
+class DocumentLineRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    product_id: int | None = None
+    description: str
+    quantity: Decimal
+    unit_price: Decimal
+    discount: Decimal
+    tax_rate_id: int | None = None
+    tax_amount: Decimal
+    line_total: Decimal
+    sort_order: int
+
+
+class InvoiceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    type: str
+    number: str
+    status: str
+    party_id: int | None = None
+    party: PartySummary | None = None
+    warehouse_id: int | None = None
+    issue_date: date
+    due_date: date | None = None
+    reference: str | None = None
+    currency: str
+    notes: str | None = None
+    terms: str | None = None
+    billing_address: dict | None = None
+    shipping_address: dict | None = None
+    subtotal: Decimal
+    discount_total: Decimal
+    tax_total: Decimal
+    shipping: Decimal
+    adjustment: Decimal
+    total: Decimal
+    amount_paid: Decimal
+    balance_due: Decimal
+    source_document_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
+    lines: list[DocumentLineRead]
+
+
+class InvoiceListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    number: str
+    status: str
+    issue_date: date
+    due_date: date | None = None
+    currency: str
+    total: Decimal
+    amount_paid: Decimal
+    balance_due: Decimal
+    party: PartySummary | None = None
+
+
+class InvoiceListQuery(ListQuery):
+    status: str | None = None
+    party_id: int | None = None
+
+
+class TaxRateCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    rate: Decimal = Field(ge=0, le=100)
+    is_active: bool = True
+
+
+class TaxRateRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    rate: Decimal
+    is_active: bool
+    is_system: bool
+
+
+class SellableItemRead(BaseModel):
+    id: int
+    name: str
+    sku: str | None = None
+    description: str | None = None
+    image_url: str | None = None
+    uom_symbol: str | None = None
+    sale_price: Decimal | None = None
+    purchase_price: Decimal | None = None

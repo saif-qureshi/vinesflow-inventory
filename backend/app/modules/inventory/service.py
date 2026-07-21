@@ -131,6 +131,19 @@ class InventoryService:
         level = self._level(org_id, product_id, location_id)
         level.quantity = level.quantity + qty_delta
 
+    def post_document_movement(
+        self, org_id, product_id, location_id, qty_delta, type_, reference_type, reference_id, unit_cost=None
+    ) -> None:
+        self.db.add(
+            StockMovement(
+                org_id=org_id, product_id=product_id, location_id=location_id,
+                qty_delta=qty_delta, type=type_, reference_type=reference_type,
+                reference_id=reference_id, unit_cost=unit_cost,
+            )
+        )
+        level = self._level(org_id, product_id, location_id)
+        level.quantity = level.quantity + qty_delta
+
     def _record(self, org_id, action, product, delta, location_id) -> None:
         self.activity.record(
             org_id, action, "stock", product.name, entity_id=product.id,

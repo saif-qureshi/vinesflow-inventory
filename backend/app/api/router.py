@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.modules.activities.router import router as activities_router
 from app.modules.auth.router import router as auth_router
 from app.modules.categories.router import router as categories_router
+from app.modules.documents.router import router as documents_router
 from app.modules.media.router import router as media_router
 from app.modules.orgs.router import router as orgs_router
 from app.modules.inventory.router import router as inventory_router
@@ -22,6 +23,7 @@ api_router.include_router(products_router)
 api_router.include_router(parties_router)
 api_router.include_router(locations_router)
 api_router.include_router(inventory_router)
+api_router.include_router(documents_router)
 api_router.include_router(activities_router)
 api_router.include_router(categories_router)
 api_router.include_router(uoms_router)

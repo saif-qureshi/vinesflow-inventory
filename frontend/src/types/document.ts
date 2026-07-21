@@ -1,0 +1,106 @@
+import type { Address } from "./party";
+
+export type InvoiceStatus = "draft" | "sent" | "partially_paid" | "paid" | "void";
+
+export interface DocumentParty {
+  id: number;
+  name: string;
+  email: string | null;
+}
+
+export interface DocumentLine {
+  id: number;
+  product_id: number | null;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  discount: string;
+  tax_rate_id: number | null;
+  tax_amount: string;
+  line_total: string;
+  sort_order: number;
+}
+
+export interface Invoice {
+  id: number;
+  type: string;
+  number: string;
+  status: InvoiceStatus;
+  party_id: number | null;
+  party: DocumentParty | null;
+  warehouse_id: number | null;
+  issue_date: string;
+  due_date: string | null;
+  reference: string | null;
+  currency: string;
+  notes: string | null;
+  terms: string | null;
+  billing_address: Address | null;
+  shipping_address: Address | null;
+  subtotal: string;
+  discount_total: string;
+  tax_total: string;
+  shipping: string;
+  adjustment: string;
+  total: string;
+  amount_paid: string;
+  balance_due: string;
+  source_document_id: number | null;
+  created_at: string;
+  updated_at: string;
+  lines: DocumentLine[];
+}
+
+export interface InvoiceListItem {
+  id: number;
+  number: string;
+  status: InvoiceStatus;
+  issue_date: string;
+  due_date: string | null;
+  currency: string;
+  total: string;
+  amount_paid: string;
+  balance_due: string;
+  party: DocumentParty | null;
+}
+
+export interface DocumentLineInput {
+  product_id?: number | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  discount?: number;
+  tax_rate_id?: number | null;
+}
+
+export interface InvoiceInput {
+  party_id: number;
+  issue_date?: string | null;
+  due_date?: string | null;
+  reference?: string | null;
+  warehouse_id?: number | null;
+  notes?: string | null;
+  terms?: string | null;
+  shipping?: number;
+  adjustment?: number;
+  lines: DocumentLineInput[];
+}
+
+export interface TaxRate {
+  id: number;
+  name: string;
+  rate: string;
+  is_active: boolean;
+  is_system: boolean;
+}
+
+export interface SellableItem {
+  id: number;
+  name: string;
+  sku: string | null;
+  description: string | null;
+  image_url: string | null;
+  uom_symbol: string | null;
+  sale_price: string | null;
+  purchase_price: string | null;
+}
