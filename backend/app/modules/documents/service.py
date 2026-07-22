@@ -18,6 +18,7 @@ from app.modules.documents.enums import (
 )
 from app.modules.documents.models import (
     Bill,
+    CreditNote,
     DeliveryChallan,
     Document,
     DocumentLine,
@@ -52,6 +53,7 @@ DOCUMENT_CLASSES: dict[DocumentType, type[Document]] = {
     DocumentType.SALES_ORDER: SalesOrder,
     DocumentType.DELIVERY_CHALLAN: DeliveryChallan,
     DocumentType.INVOICE: Invoice,
+    DocumentType.CREDIT_NOTE: CreditNote,
     DocumentType.PURCHASE_ORDER: PurchaseOrder,
     DocumentType.GOODS_RECEIPT: GoodsReceipt,
     DocumentType.BILL: Bill,
@@ -61,6 +63,7 @@ DOCUMENT_CLASSES: dict[DocumentType, type[Document]] = {
 CONVERSIONS: dict[DocumentType, list[DocumentType]] = {
     DocumentType.SALES_ORDER: [DocumentType.DELIVERY_CHALLAN, DocumentType.INVOICE],
     DocumentType.DELIVERY_CHALLAN: [DocumentType.INVOICE],
+    DocumentType.INVOICE: [DocumentType.CREDIT_NOTE],
     DocumentType.PURCHASE_ORDER: [DocumentType.GOODS_RECEIPT, DocumentType.BILL],
     DocumentType.GOODS_RECEIPT: [DocumentType.BILL],
 }
@@ -354,12 +357,38 @@ class DocumentService:
         return doc
 
     def _source_moved_stock(self, doc: Document) -> bool:
-        """True when the document this one came from already shipped/received the
-        goods, so finalizing must not move the same stock twice."""
+        """True when the document this one came from already moved the goods, so
+        finalizing must not move the same stock twice. Only applies when both
+        move it the same way (challan -> invoice); a reversal such as
+        invoice -> credit note has to move stock itself."""
         if doc.source_document_id is None:
             return False
         source = self.db.get(Document, doc.source_document_id)
-        return bool(source and source.stock_posted)
+        if source is None or not source.stock_posted:
+            return False
+        return source.stock_direction == doc.stock_direction
+
+    def _apply_credit(self, org_id: int, doc: Document) -> None:
+        """A credit note settles the invoice it was raised against, so the
+        customer no longer owes for goods they returned."""
+        if doc.type != DocumentType.CREDIT_NOTE or doc.source_document_id is None:
+            return
+        source = self.db.get(Document, doc.source_document_id)
+        if source is None or source.org_id != org_id or source.status != DocumentStatus.SENT:
+            return
+        outstanding = source.total - source.amount_paid
+        if doc.total > outstanding:
+            raise BadRequestError(f"Credit exceeds the balance due on {source.number}")
+        self.apply_settlement(source, doc.total)
+        doc.settled_amount = doc.total
+
+    def _reverse_credit(self, doc: Document) -> None:
+        if doc.settled_amount <= _ZERO or doc.source_document_id is None:
+            return
+        source = self.db.get(Document, doc.source_document_id)
+        if source is not None:
+            self.apply_settlement(source, -doc.settled_amount)
+        doc.settled_amount = _ZERO
 
     def convert(
         self, org_id: int, doc_id: int, source_type: DocumentType, target_type: DocumentType
@@ -432,6 +461,7 @@ class DocumentService:
                 doc.warehouse_id = self._default_location(org_id)
             if doc.warehouse_id is None:
                 raise BadRequestError("No warehouse available to move stock")
+        self._apply_credit(org_id, doc)
         if moves_stock:
             self._post_stock(org_id, doc, reverse=False)
             doc.stock_posted = True
@@ -455,6 +485,7 @@ class DocumentService:
         if doc.stock_posted:
             self._post_stock(org_id, doc, reverse=True)
             doc.stock_posted = False
+        self._reverse_credit(doc)
         self.ledger.reverse_document(self.db, doc)
         doc.status = DocumentStatus.VOID
         self.activity.record(org_id, "voided", doc.type, doc.number, entity_id=doc.id)

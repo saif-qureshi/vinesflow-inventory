@@ -70,7 +70,6 @@ const NAV: MenuProps["items"] = [
       { key: "/sales/invoices", label: "Invoices" },
       { key: "/sales/receipts", label: "Sales Receipts" },
       { key: "/sales/payments-received", label: "Payments Received" },
-      { key: "/sales/returns", label: "Sales Returns" },
       { key: "/sales/credit-notes", label: "Credit Notes" },
     ],
   },

@@ -112,6 +112,8 @@ class Document(Base, TimestampMixin, AuditMixin):
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
     stock_posted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # How much this document credited against the document it came from.
+    settled_amount: Mapped[Decimal] = mapped_column(_MONEY, default=0, nullable=False)
 
     lines: Mapped[list[DocumentLine]] = relationship(
         back_populates="document",
@@ -150,6 +152,13 @@ class DeliveryChallan(Document):
 
     stock_direction = -1
     movement_type = "delivery"
+
+
+class CreditNote(Document):
+    __mapper_args__ = {"polymorphic_identity": DocumentType.CREDIT_NOTE}
+
+    stock_direction = 1
+    movement_type = "sales_return"
 
 
 class PurchaseOrder(Document):

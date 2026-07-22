@@ -4,12 +4,13 @@ export type DocumentKind =
   | "sales_order"
   | "delivery_challan"
   | "invoice"
+  | "credit_note"
   | "purchase_order"
   | "goods_receipt"
   | "bill";
 
 export interface DocumentConversion {
-  target: "delivery_challan" | "invoice" | "goods_receipt" | "bill";
+  target: "delivery_challan" | "invoice" | "credit_note" | "goods_receipt" | "bill";
   label: string;
 }
 
@@ -110,6 +111,30 @@ export const INVOICE_CONFIG: DocumentKindConfig = {
     warehouseHint: "Stock ships from here",
     newAction: "New Invoice",
   },
+  conversions: [{ target: "credit_note", label: "Create Credit Note" }],
+};
+
+export const CREDIT_NOTE_CONFIG: DocumentKindConfig = {
+  kind: "credit_note",
+  apiPath: "credit-notes",
+  basePath: "/sales/credit-notes",
+  permission: "credit_notes",
+  partyRole: "customer",
+  paymentDirection: "received",
+  tracksPayment: false,
+  priceField: "sale_price",
+  labels: {
+    singular: "Credit Note",
+    listTitle: "Credit Notes",
+    listDescription: "Goods returned by customers and credits issued to them",
+    party: "Customer",
+    dateLabel: "Credit date",
+    referenceLabel: "Reference",
+    referencePlaceholder: "Reason / reference",
+    warehouseHint: "Returned stock comes back here",
+    newAction: "New Credit Note",
+  },
+  statusOverrides: { sent: "Issued" },
 };
 
 export const PURCHASE_ORDER_CONFIG: DocumentKindConfig = {

@@ -5,6 +5,7 @@ from app.modules.auth.models import RefreshSession
 from app.modules.categories.models import Category
 from app.modules.documents.models import (
     Bill,
+    CreditNote,
     DeliveryChallan,
     Document,
     DocumentLine,
