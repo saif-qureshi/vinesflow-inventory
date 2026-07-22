@@ -7,9 +7,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.core.ledger import ledger_poster
 from app.core.pagination import paginate_cursor
 from app.modules.activities.service import ActivityService
-from app.modules.documents.enums import DEFAULT_PREFIXES, DocumentStatus, DocumentType
+from app.modules.documents.enums import (
+    DEFAULT_PREFIXES,
+    DocumentPaymentStatus,
+    DocumentStatus,
+    DocumentType,
+)
 from app.modules.documents.models import (
     Bill,
     Document,
@@ -18,6 +24,7 @@ from app.modules.documents.models import (
     Invoice,
     TaxRate,
 )
+from app.modules.documents.numbering import next_number
 from app.modules.documents.schemas import (
     DocumentCreate,
     DocumentLineInput,
@@ -60,6 +67,7 @@ class DocumentService:
         self.db = db
         self.activity = ActivityService(db)
         self.inventory = InventoryService(db)
+        self.ledger = ledger_poster
 
     # --- Seeding ----------------------------------------------------------
 
@@ -137,23 +145,17 @@ class DocumentService:
             return product.parent.media[0].url
         return None
 
-    # --- Numbering --------------------------------------------------------
-
-    def _next_number(self, org_id: int, doc_type: DocumentType) -> str:
-        seq = self.db.scalar(
-            select(DocumentSequence)
-            .where(DocumentSequence.org_id == org_id, DocumentSequence.type == doc_type)
-            .with_for_update()
-        )
-        if seq is None:
-            seq = DocumentSequence(org_id=org_id, type=doc_type, prefix=DEFAULT_PREFIXES[doc_type])
-            self.db.add(seq)
-            self.db.flush()
-        number = seq.next_number
-        seq.next_number = number + 1
-        return f"{seq.prefix}-{number:0{seq.padding}d}"
-
-    # --- Lines & totals ---------------------------------------------------
+    def apply_settlement(self, doc: Document, delta: Decimal) -> None:
+        paid = doc.amount_paid + delta
+        if paid < _ZERO:
+            paid = _ZERO
+        doc.amount_paid = paid
+        if paid <= _ZERO:
+            doc.payment_status = DocumentPaymentStatus.UNPAID
+        elif paid >= doc.total:
+            doc.payment_status = DocumentPaymentStatus.PAID
+        else:
+            doc.payment_status = DocumentPaymentStatus.PARTIAL
 
     def _tax_map(self, org_id: int, lines: list[DocumentLineInput]) -> dict[int, TaxRate]:
         ids = {line.tax_rate_id for line in lines if line.tax_rate_id is not None}
@@ -263,7 +265,7 @@ class DocumentService:
         issue_date = payload.issue_date or date.today()
         doc = doc_cls(
             org_id=org_id,
-            number=self._next_number(org_id, doc_type),
+            number=next_number(self.db, org_id, doc_type, DEFAULT_PREFIXES[doc_type]),
             status=DocumentStatus.DRAFT,
             party_id=party.id,
             warehouse_id=payload.warehouse_id,
@@ -293,6 +295,8 @@ class DocumentService:
         stmt = select(Document).where(Document.org_id == org_id, Document.type == doc_type)
         if query.status:
             stmt = stmt.where(Document.status == query.status)
+        if query.payment_status:
+            stmt = stmt.where(Document.payment_status == query.payment_status)
         if query.party_id is not None:
             stmt = stmt.where(Document.party_id == query.party_id)
         if query.search:
@@ -346,6 +350,7 @@ class DocumentService:
             if doc.warehouse_id is None:
                 raise BadRequestError("No warehouse available to move stock")
         self._post_stock(org_id, doc, reverse=False)
+        self.ledger.post_document(self.db, doc)
         doc.status = DocumentStatus.SENT
         self.activity.record(org_id, "finalized", doc.type, doc.number, entity_id=doc.id)
         self.db.commit()
@@ -363,6 +368,7 @@ class DocumentService:
         if doc.amount_paid > _ZERO:
             raise BadRequestError("Cannot void a document with recorded payments")
         self._post_stock(org_id, doc, reverse=True)
+        self.ledger.reverse_document(self.db, doc)
         doc.status = DocumentStatus.VOID
         self.activity.record(org_id, "voided", doc.type, doc.number, entity_id=doc.id)
         self.db.commit()

@@ -18,7 +18,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import AuditMixin, Base, TimestampMixin
-from app.modules.documents.enums import DiscountType, DocumentStatus, DocumentType
+from app.modules.documents.enums import (
+    DiscountType,
+    DocumentPaymentStatus,
+    DocumentStatus,
+    DocumentType,
+)
 from app.modules.parties.models import Party
 
 _MONEY = Numeric(18, 2)
@@ -99,6 +104,9 @@ class Document(Base, TimestampMixin, AuditMixin):
     adjustment: Mapped[Decimal] = mapped_column(_MONEY, default=0, nullable=False)
     total: Mapped[Decimal] = mapped_column(_MONEY, default=0, nullable=False)
     amount_paid: Mapped[Decimal] = mapped_column(_MONEY, default=0, nullable=False)
+    payment_status: Mapped[str] = mapped_column(
+        String(10), default=DocumentPaymentStatus.UNPAID, nullable=False
+    )
 
     source_document_id: Mapped[int | None] = mapped_column(
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True

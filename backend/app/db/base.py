@@ -16,6 +16,7 @@ from app.modules.locations.models import Location
 from app.modules.media.models import MediaAsset
 from app.modules.orgs.models import Membership, Organization
 from app.modules.parties.models import Party
+from app.modules.payments.models import Payment, PaymentAllocation
 from app.modules.products.models import (
     Product,
     product_attribute_values,

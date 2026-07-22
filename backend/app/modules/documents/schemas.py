@@ -83,6 +83,7 @@ class DocumentRead(BaseModel):
     type: str
     number: str
     status: str
+    payment_status: str
     party_id: int | None = None
     party: PartySummary | None = None
     warehouse_id: int | None = None
@@ -114,6 +115,7 @@ class DocumentListItem(BaseModel):
     id: int
     number: str
     status: str
+    payment_status: str
     issue_date: date
     due_date: date | None = None
     currency: str
@@ -125,6 +127,7 @@ class DocumentListItem(BaseModel):
 
 class DocumentListQuery(ListQuery):
     status: str | None = None
+    payment_status: str | None = None
     party_id: int | None = None
 
 

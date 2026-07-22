@@ -9,6 +9,7 @@ from app.modules.orgs.router import router as orgs_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.locations.router import router as locations_router
 from app.modules.parties.router import router as parties_router
+from app.modules.payments.router import router as payments_router
 from app.modules.products.router import router as products_router
 from app.modules.rbac.router import router as rbac_router
 from app.modules.uoms.router import router as uoms_router
@@ -24,6 +25,7 @@ api_router.include_router(parties_router)
 api_router.include_router(locations_router)
 api_router.include_router(inventory_router)
 api_router.include_router(documents_router)
+api_router.include_router(payments_router)
 api_router.include_router(activities_router)
 api_router.include_router(categories_router)
 api_router.include_router(uoms_router)

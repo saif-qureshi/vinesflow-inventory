@@ -18,14 +18,43 @@ class DocumentType(StrEnum):
 class DocumentStatus(StrEnum):
     DRAFT = "draft"
     SENT = "sent"
-    PARTIALLY_PAID = "partially_paid"
-    PAID = "paid"
     VOID = "void"
+
+
+class DocumentPaymentStatus(StrEnum):
+    UNPAID = "unpaid"
+    PARTIAL = "partial"
+    PAID = "paid"
 
 
 class DiscountType(StrEnum):
     AMOUNT = "amount"
     PERCENT = "percent"
+
+
+class PaymentDirection(StrEnum):
+    RECEIVED = "received"
+    MADE = "made"
+
+
+class PaymentStatus(StrEnum):
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    CANCELLED = "cancelled"
+
+
+class PaymentMethod(StrEnum):
+    CASH = "cash"
+    BANK = "bank"
+    CHEQUE = "cheque"
+    CARD = "card"
+    OTHER = "other"
+
+
+PAYMENT_PREFIXES: dict[PaymentDirection, str] = {
+    PaymentDirection.RECEIVED: "PAY",
+    PaymentDirection.MADE: "PMT",
+}
 
 
 DEFAULT_PREFIXES: dict[DocumentType, str] = {
