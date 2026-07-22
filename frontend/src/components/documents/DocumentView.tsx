@@ -38,6 +38,8 @@ import { lifecycleMeta, PAYMENT_META } from "./status";
 const CONVERT_TARGET_PATH: Record<string, string> = {
   delivery_challan: "/sales/challans",
   invoice: "/sales/invoices",
+  goods_receipt: "/purchases/receipts",
+  bill: "/purchases/bills",
 };
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {

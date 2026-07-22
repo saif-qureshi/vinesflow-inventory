@@ -152,6 +152,20 @@ class DeliveryChallan(Document):
     movement_type = "delivery"
 
 
+class PurchaseOrder(Document):
+    __mapper_args__ = {"polymorphic_identity": DocumentType.PURCHASE_ORDER}
+
+    stock_direction = 0
+    movement_type = "purchase_order"
+
+
+class GoodsReceipt(Document):
+    __mapper_args__ = {"polymorphic_identity": DocumentType.GOODS_RECEIPT}
+
+    stock_direction = 1
+    movement_type = "goods_receipt"
+
+
 class Bill(Document):
     __mapper_args__ = {"polymorphic_identity": DocumentType.BILL}
 

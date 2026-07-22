@@ -201,25 +201,28 @@ class InventoryService:
                 StockMovement.type == "opening",
             )
         )
-        committed = self.committed(org_id, product_id)
+        committed = self._open_order_qty(org_id, product_id, DocumentType.SALES_ORDER)
+        incoming = self._open_order_qty(org_id, product_id, DocumentType.PURCHASE_ORDER)
         return ItemStockRead(
             on_hand=total,
             opening_stock=opening or _ZERO,
             committed=committed,
             available=total - committed,
             to_be_shipped=committed,
+            to_be_received=incoming,
             by_location=[StockByLocation(location_id=k, quantity=v) for k, v in by_location.items()],
         )
 
-    def committed(self, org_id: int, product_id: int) -> Decimal:
-        """Quantity promised by open (finalized, not yet converted) sales orders."""
+    def _open_order_qty(self, org_id: int, product_id: int, doc_type: DocumentType) -> Decimal:
+        """Quantity on open (finalized, not yet converted) orders of a type:
+        sales orders commit stock, purchase orders are incoming."""
         qty = self.db.scalar(
             select(func.coalesce(func.sum(DocumentLine.quantity), 0))
             .select_from(DocumentLine)
             .join(Document, Document.id == DocumentLine.document_id)
             .where(
                 Document.org_id == org_id,
-                Document.type == DocumentType.SALES_ORDER,
+                Document.type == doc_type,
                 Document.status == DocumentStatus.SENT,
                 DocumentLine.product_id == product_id,
             )

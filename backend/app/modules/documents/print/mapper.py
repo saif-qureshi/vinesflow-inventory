@@ -30,6 +30,7 @@ TITLES = {
     DocumentType.SALES_ORDER: "Sales Order",
     DocumentType.DELIVERY_CHALLAN: "Delivery Challan",
     DocumentType.PURCHASE_ORDER: "Purchase Order",
+    DocumentType.GOODS_RECEIPT: "Goods Receipt Note",
     DocumentType.CREDIT_NOTE: "Credit Note",
 }
 
@@ -98,7 +99,11 @@ def _company(org: Organization) -> PrintCompany:
 
 
 def document_to_print(doc: Document, org: Organization) -> PrintDocument:
-    is_purchase = doc.type in (DocumentType.BILL, DocumentType.PURCHASE_ORDER)
+    is_purchase = doc.type in (
+        DocumentType.BILL,
+        DocumentType.PURCHASE_ORDER,
+        DocumentType.GOODS_RECEIPT,
+    )
     party = doc.party
     party_lines = _address_lines(doc.billing_address)
     if party is not None:

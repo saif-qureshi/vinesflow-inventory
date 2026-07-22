@@ -1,9 +1,15 @@
 import type { DocumentStatus, PartyRole, PaymentDirection } from "@/types";
 
-export type DocumentKind = "sales_order" | "delivery_challan" | "invoice" | "bill";
+export type DocumentKind =
+  | "sales_order"
+  | "delivery_challan"
+  | "invoice"
+  | "purchase_order"
+  | "goods_receipt"
+  | "bill";
 
 export interface DocumentConversion {
-  target: "delivery_challan" | "invoice";
+  target: "delivery_challan" | "invoice" | "goods_receipt" | "bill";
   label: string;
 }
 
@@ -104,6 +110,57 @@ export const INVOICE_CONFIG: DocumentKindConfig = {
     warehouseHint: "Stock ships from here",
     newAction: "New Invoice",
   },
+};
+
+export const PURCHASE_ORDER_CONFIG: DocumentKindConfig = {
+  kind: "purchase_order",
+  apiPath: "purchase-orders",
+  basePath: "/purchases/orders",
+  permission: "purchase_orders",
+  partyRole: "vendor",
+  paymentDirection: "made",
+  tracksPayment: false,
+  priceField: "purchase_price",
+  labels: {
+    singular: "Purchase Order",
+    listTitle: "Purchase Orders",
+    listDescription: "What you have ordered from vendors but not yet received",
+    party: "Vendor",
+    dateLabel: "Order date",
+    referenceLabel: "Reference",
+    referencePlaceholder: "Vendor reference",
+    warehouseHint: "Stock will be received into here",
+    newAction: "New Purchase Order",
+  },
+  statusOverrides: { sent: "Issued" },
+  conversions: [
+    { target: "goods_receipt", label: "Receive Goods" },
+    { target: "bill", label: "Convert to Bill" },
+  ],
+};
+
+export const GOODS_RECEIPT_CONFIG: DocumentKindConfig = {
+  kind: "goods_receipt",
+  apiPath: "goods-receipts",
+  basePath: "/purchases/receipts",
+  permission: "goods_receipts",
+  partyRole: "vendor",
+  paymentDirection: "made",
+  tracksPayment: false,
+  priceField: "purchase_price",
+  labels: {
+    singular: "Goods Receipt",
+    listTitle: "Goods Receipts",
+    listDescription: "Goods received from vendors",
+    party: "Vendor",
+    dateLabel: "Receipt date",
+    referenceLabel: "Reference",
+    referencePlaceholder: "Delivery note no.",
+    warehouseHint: "Stock is received into here",
+    newAction: "New Goods Receipt",
+  },
+  statusOverrides: { sent: "Received" },
+  conversions: [{ target: "bill", label: "Convert to Bill" }],
 };
 
 export const BILL_CONFIG: DocumentKindConfig = {

@@ -127,7 +127,7 @@ class DocumentListItem(BaseModel):
 
 
 class DocumentConvertInput(BaseModel):
-    target: Literal["delivery_challan", "invoice"]
+    target: Literal["delivery_challan", "invoice", "goods_receipt", "bill"]
 
 
 class DocumentListQuery(ListQuery):

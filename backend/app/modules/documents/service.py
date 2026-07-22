@@ -22,7 +22,9 @@ from app.modules.documents.models import (
     Document,
     DocumentLine,
     DocumentSequence,
+    GoodsReceipt,
     Invoice,
+    PurchaseOrder,
     SalesOrder,
     TaxRate,
 )
@@ -50,6 +52,8 @@ DOCUMENT_CLASSES: dict[DocumentType, type[Document]] = {
     DocumentType.SALES_ORDER: SalesOrder,
     DocumentType.DELIVERY_CHALLAN: DeliveryChallan,
     DocumentType.INVOICE: Invoice,
+    DocumentType.PURCHASE_ORDER: PurchaseOrder,
+    DocumentType.GOODS_RECEIPT: GoodsReceipt,
     DocumentType.BILL: Bill,
 }
 
@@ -57,10 +61,12 @@ DOCUMENT_CLASSES: dict[DocumentType, type[Document]] = {
 CONVERSIONS: dict[DocumentType, list[DocumentType]] = {
     DocumentType.SALES_ORDER: [DocumentType.DELIVERY_CHALLAN, DocumentType.INVOICE],
     DocumentType.DELIVERY_CHALLAN: [DocumentType.INVOICE],
+    DocumentType.PURCHASE_ORDER: [DocumentType.GOODS_RECEIPT, DocumentType.BILL],
+    DocumentType.GOODS_RECEIPT: [DocumentType.BILL],
 }
 
-# Orders stop committing stock once they have been converted.
-CLOSED_ON_CONVERT = {DocumentType.SALES_ORDER}
+# Orders stop committing / expecting stock once they have been converted.
+CLOSED_ON_CONVERT = {DocumentType.SALES_ORDER, DocumentType.PURCHASE_ORDER}
 
 SALES_TYPES = {
     DocumentType.SALES_ORDER,
