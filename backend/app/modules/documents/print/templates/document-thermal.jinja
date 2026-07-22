@@ -1,0 +1,60 @@
+<div class="doc">
+  <div class="head">
+    {% if show_logo %}<img class="logo" src="{{ company.logo_data_url }}" alt="">{% endif %}
+    <div class="company-name">{{ company.name }}</div>
+    <div class="company-lines">
+      {% for line in company.lines %}<div>{{ line }}</div>{% endfor %}
+    </div>
+    <div class="title-block">
+      <div class="doc-title">{{ title }}</div>
+      <div class="doc-no">{{ document_no }}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    {% for field in meta %}<div><span class="label">{{ field.label }}</span><span>{{ field.value }}</span></div>{% endfor %}
+  </div>
+
+  <div class="parties">
+    {% for party in parties %}
+    <div class="party">
+      <div class="heading">{{ party.heading }}</div>
+      <div class="name">{{ party.name }}</div>
+      {% for line in party.lines %}<div class="line">{{ line }}</div>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>{% for col in columns %}<th class="{{ 'right' if col.align == 'right' else '' }}">{{ col.label }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>{% for cell in row.cells %}<td class="{{ 'right tabular' if cell.align == 'right' else '' }}">{{ cell.value }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="foot">
+    <div class="totals">
+      {% for total in totals %}
+      <div class="row {{ 'grand' if total.emphasize else '' }}">
+        <span>{{ total.label }}</span><span class="tabular">{{ total.value }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if amount_in_words %}<div class="words">{{ amount_in_words }}</div>{% endif %}
+    {% if notes %}<div class="block"><div class="body">{{ notes }}</div></div>{% endif %}
+  </div>
+
+  {% if stamp.image %}
+  <div class="stamp">
+    <div class="wrap">
+      <img class="qr" src="{{ stamp.image }}" alt="">
+      {% if stamp.overlay %}<img class="overlay" src="{{ stamp.overlay }}" alt="">{% endif %}
+    </div>
+    {% if stamp.caption %}<div class="caption">{{ stamp.caption }}</div>{% endif %}
+  </div>
+  {% endif %}
+</div>

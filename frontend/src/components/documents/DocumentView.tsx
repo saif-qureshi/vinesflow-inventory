@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Descriptions, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ArrowLeft, Ban, CheckCircle2, Pencil, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, Pencil, Printer, Trash2, Wallet } from "lucide-react";
 
 import { App, Button, Card, Popconfirm, Tag, Typography } from "@/components/ui";
 import { PaymentModal } from "@/components/payments/PaymentModal";
@@ -16,7 +16,7 @@ import {
   useVoidDocument,
 } from "@/hooks/useDocuments";
 import { useCan } from "@/hooks/useSession";
-import { apiErrorMessage } from "@/lib/api";
+import { api, apiErrorMessage } from "@/lib/api";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { PAYMENT_CONFIG } from "@/lib/paymentKinds";
 import { formatDate } from "@/lib/format";
@@ -44,6 +44,7 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   const voidDoc = useVoidDocument(config.apiPath);
   const del = useDeleteDocument(config.apiPath);
   const [payOpen, setPayOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   if (isLoading || !doc) {
     return (
@@ -56,6 +57,25 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   const dash = <span className="text-gray-400">—</span>;
   const isDraft = doc.status === "draft";
   const paidMeta = PAYMENT_META[doc.payment_status];
+
+  const openPdf = async () => {
+    setPrinting(true);
+    try {
+      const res = await api.get(`/${config.apiPath}/${doc.id}/pdf`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data as Blob);
+      if (!window.open(url, "_blank")) {
+        const link = window.document.createElement("a");
+        link.href = url;
+        link.download = `${doc.number}.pdf`;
+        link.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      message.error(apiErrorMessage(err));
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -125,6 +145,9 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button icon={<Printer size={16} />} loading={printing} onClick={openPdf}>
+            Print
+          </Button>
           {isDraft && can(`${config.permission}:update`) && (
             <>
               <Button

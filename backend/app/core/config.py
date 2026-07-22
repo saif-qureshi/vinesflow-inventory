@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3005"]
 
+    GOTENBERG_URL: str = "http://localhost:3009"
+
     # Media storage: "local" (dev, served from disk) or "s3".
     STORAGE_BACKEND: str = "local"
     MEDIA_LOCAL_DIR: str = "media_storage"

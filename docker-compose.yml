@@ -17,5 +17,12 @@ services:
       timeout: 5s
       retries: 5
 
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: vineflow-gotenberg
+    restart: unless-stopped
+    ports:
+      - "${GOTENBERG_HOST_PORT:-3009}:3000"
+
 volumes:
   vineflow_pgdata:

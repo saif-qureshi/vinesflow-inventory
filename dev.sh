@@ -15,6 +15,7 @@ FRONTEND="$ROOT/frontend"
 DB_HOST_PORT="${DB_HOST_PORT:-5433}"
 BACKEND_PORT="${BACKEND_PORT:-8005}"
 FRONTEND_PORT="${FRONTEND_PORT:-3005}"
+GOTENBERG_HOST_PORT="${GOTENBERG_HOST_PORT:-3009}"
 
 SEED=0
 [ "${1:-}" = "--seed" ] && SEED=1
@@ -32,6 +33,14 @@ else
     [ "$(docker inspect -f '{{.State.Health.Status}}' vineflow-db 2>/dev/null)" = "healthy" ] && break
     sleep 1
   done
+fi
+
+# Gotenberg renders document PDFs (headless Chromium over HTTP).
+if docker ps --format '{{.Names}}' | grep -q '^vineflow-gotenberg$'; then
+  log "Gotenberg already running."
+else
+  log "Starting Gotenberg (host port ${GOTENBERG_HOST_PORT})..."
+  GOTENBERG_HOST_PORT="$GOTENBERG_HOST_PORT" docker compose -f "$ROOT/docker-compose.yml" up -d gotenberg
 fi
 
 # 2. Backend: deps + migrations -------------------------------------------

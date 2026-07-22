@@ -1,0 +1,5 @@
+.doc{padding:2px}
+.head{padding-bottom:14px;border-bottom:3px solid var(--accent)}
+.doc-title{font-size:22px}
+table.items thead th:first-child{border-top-left-radius:4px}
+table.items thead th:last-child{border-top-right-radius:4px}

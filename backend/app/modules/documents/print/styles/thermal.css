@@ -1,0 +1,20 @@
+html,body{font-family:"DejaVu Sans Mono",Menlo,Consolas,monospace;font-size:10px;line-height:1.35}
+.doc{padding:0}
+.head{display:block;text-align:center;border-bottom:1px dashed #444;padding-bottom:6px}
+.title-block{text-align:center;margin-top:6px}
+.doc-title{font-size:13px;color:#000;letter-spacing:.5px}
+.logo{max-height:38px;margin:0 auto;display:block}
+.company-lines,.meta{color:#333}
+.meta div{display:flex;justify-content:space-between}
+.parties{display:block;margin-top:8px}
+.party{background:none;border:none;border-radius:0;padding:0;margin-bottom:6px}
+table.items{margin-top:8px}
+table.items thead th{background:none;color:#000;border-bottom:1px dashed #444;padding:4px 2px;font-size:9px}
+table.items tbody td{padding:4px 2px;border-bottom:1px dotted #ddd}
+table.items tbody tr:nth-child(even) td{background:none}
+.foot{display:block;margin-top:8px}
+.totals{width:100%}
+.totals .row.grand{font-size:12px;border-top:1px dashed #444}
+.words,.header-note{background:none;padding:4px 0}
+.stamp{text-align:center}
+.contact{display:block;text-align:center;border-top:1px dashed #444}

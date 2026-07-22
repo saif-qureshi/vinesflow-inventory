@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import CurrentMembership, require_permission
 from app.core.container import Provide
 from app.core.pagination import CursorPage
 from app.core.responses import EnvelopeRoute
 from app.modules.documents.enums import DocumentType
+from app.modules.documents.print.service import DocumentPrintService
 from app.modules.documents.schemas import (
     DocumentCreate,
     DocumentListItem,
@@ -24,6 +25,7 @@ from app.modules.orgs.models import Membership
 
 router = APIRouter(tags=["documents"], route_class=EnvelopeRoute)
 Svc = Depends(Provide(DocumentService))
+PrintSvc = Depends(Provide(DocumentPrintService))
 
 
 @router.get("/tax-rates", response_model=list[TaxRateRead])
@@ -104,6 +106,33 @@ def register_document_routes(path: str, doc_type: DocumentType, module: str) -> 
     )
     def _delete(doc_id: int, membership: Membership = drop, svc: DocumentService = Svc) -> None:
         svc.delete(membership.org_id, doc_id, doc_type)
+
+    @router.get(f"/{path}/{{doc_id}}/preview", name=f"preview_{path}")
+    def _preview(
+        doc_id: int,
+        skin: str = "corporate",
+        membership: Membership = read,
+        svc: DocumentPrintService = PrintSvc,
+    ):
+        html = svc.render_html(membership.org_id, doc_id, doc_type, skin)
+        return Response(content=html, media_type="text/html")
+
+    @router.get(f"/{path}/{{doc_id}}/pdf", name=f"pdf_{path}")
+    def _pdf(
+        doc_id: int,
+        skin: str = "corporate",
+        paper: str = "a4",
+        download: bool = False,
+        membership: Membership = read,
+        svc: DocumentPrintService = PrintSvc,
+    ):
+        content, filename = svc.render_pdf(membership.org_id, doc_id, doc_type, skin, paper)
+        disposition = "attachment" if download else "inline"
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
+        )
 
 
 register_document_routes("invoices", DocumentType.INVOICE, "invoices")
