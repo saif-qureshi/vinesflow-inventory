@@ -10,28 +10,27 @@ import {
 import { api } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import type {
-  DocumentInput,
-  DocumentRecord,
-  DocumentStatus,
-  DocumentSummary,
-  SellableItem,
-  TaxRate,
+  OutstandingDocument,
+  PaymentDirection,
+  PaymentInput,
+  PaymentRecord,
+  PaymentStatus,
+  PaymentSummary,
 } from "@/types";
 
-interface DocumentPage {
-  items: DocumentSummary[];
+interface PaymentPage {
+  items: PaymentSummary[];
   next_cursor: string | null;
   has_more: boolean;
 }
 
-export interface DocumentFilters {
+export interface PaymentFilters {
   search?: string;
-  status?: DocumentStatus | null;
-  payment_status?: string | null;
+  status?: PaymentStatus | null;
   party_id?: number | null;
 }
 
-export function useDocumentList(apiPath: string, filters: DocumentFilters = {}, limit = 25) {
+export function usePaymentList(apiPath: string, filters: PaymentFilters = {}, limit = 25) {
   const token = useSessionStore((s) => s.accessToken);
   const orgId = useSessionStore((s) => s.currentOrgId);
   return useInfiniteQuery({
@@ -41,9 +40,8 @@ export function useDocumentList(apiPath: string, filters: DocumentFilters = {}, 
       if (pageParam) params.set("cursor", pageParam as string);
       if (filters.search) params.set("search", filters.search);
       if (filters.status) params.set("status", filters.status);
-      if (filters.payment_status) params.set("payment_status", filters.payment_status);
       if (filters.party_id != null) params.set("party_id", String(filters.party_id));
-      return (await api.get<DocumentPage>(`/${apiPath}?${params.toString()}`)).data;
+      return (await api.get<PaymentPage>(`/${apiPath}?${params.toString()}`)).data;
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => (last.has_more ? last.next_cursor : undefined),
@@ -51,12 +49,12 @@ export function useDocumentList(apiPath: string, filters: DocumentFilters = {}, 
   });
 }
 
-export function useDocument(apiPath: string, id: number | null) {
+export function usePayment(apiPath: string, id: number | null) {
   const token = useSessionStore((s) => s.accessToken);
   const orgId = useSessionStore((s) => s.currentOrgId);
   return useQuery({
     queryKey: [apiPath, "one", orgId, id],
-    queryFn: async () => (await api.get<DocumentRecord>(`/${apiPath}/${id}`)).data,
+    queryFn: async () => (await api.get<PaymentRecord>(`/${apiPath}/${id}`)).data,
     enabled: !!token && !!orgId && !!id,
   });
 }
@@ -67,46 +65,39 @@ function useInvalidate(apiPath: string) {
   return (id?: number) => {
     qc.invalidateQueries({ queryKey: [apiPath, orgId] });
     if (id) qc.invalidateQueries({ queryKey: [apiPath, "one", orgId, id] });
-    qc.invalidateQueries({ queryKey: ["inventory", orgId] });
+    qc.invalidateQueries({ queryKey: ["invoices"] });
+    qc.invalidateQueries({ queryKey: ["bills"] });
+    qc.invalidateQueries({ queryKey: ["outstanding"] });
   };
 }
 
-export function useCreateDocument(apiPath: string) {
+export function useCreatePayment(apiPath: string) {
   const invalidate = useInvalidate(apiPath);
   return useMutation({
-    mutationFn: async (payload: DocumentInput) =>
-      (await api.post<DocumentRecord>(`/${apiPath}`, payload)).data,
+    mutationFn: async (payload: PaymentInput) =>
+      (await api.post<PaymentRecord>(`/${apiPath}`, payload)).data,
     onSuccess: () => invalidate(),
   });
 }
 
-export function useUpdateDocument(apiPath: string) {
-  const invalidate = useInvalidate(apiPath);
-  return useMutation({
-    mutationFn: async (vars: { id: number; payload: Partial<DocumentInput> }) =>
-      (await api.patch<DocumentRecord>(`/${apiPath}/${vars.id}`, vars.payload)).data,
-    onSuccess: (_res, vars) => invalidate(vars.id),
-  });
-}
-
-export function useFinalizeDocument(apiPath: string) {
+export function useSubmitPayment(apiPath: string) {
   const invalidate = useInvalidate(apiPath);
   return useMutation({
     mutationFn: async (id: number) =>
-      (await api.post<DocumentRecord>(`/${apiPath}/${id}/finalize`)).data,
+      (await api.post<PaymentRecord>(`/${apiPath}/${id}/submit`)).data,
     onSuccess: (_res, id) => invalidate(id),
   });
 }
 
-export function useVoidDocument(apiPath: string) {
+export function useCancelPayment(apiPath: string) {
   const invalidate = useInvalidate(apiPath);
   return useMutation({
-    mutationFn: async (id: number) => (await api.post<DocumentRecord>(`/${apiPath}/${id}/void`)).data,
+    mutationFn: async (id: number) => (await api.post<PaymentRecord>(`/${apiPath}/${id}/cancel`)).data,
     onSuccess: (_res, id) => invalidate(id),
   });
 }
 
-export function useDeleteDocument(apiPath: string) {
+export function useDeletePayment(apiPath: string) {
   const invalidate = useInvalidate(apiPath);
   return useMutation({
     mutationFn: (id: number) => api.delete(`/${apiPath}/${id}`),
@@ -114,26 +105,17 @@ export function useDeleteDocument(apiPath: string) {
   });
 }
 
-export function useTaxRates() {
+export function useOutstandingDocuments(direction: PaymentDirection, partyId: number | null) {
   const token = useSessionStore((s) => s.accessToken);
   const orgId = useSessionStore((s) => s.currentOrgId);
   return useQuery({
-    queryKey: ["tax-rates", orgId],
-    queryFn: async () => (await api.get<TaxRate[]>("/tax-rates")).data,
-    enabled: !!token && !!orgId,
-  });
-}
-
-export function useSellableItems(search: string, limit = 50) {
-  const token = useSessionStore((s) => s.accessToken);
-  const orgId = useSessionStore((s) => s.currentOrgId);
-  return useQuery({
-    queryKey: ["sellable-items", orgId, search, limit],
-    queryFn: async () => {
-      const params = new URLSearchParams({ limit: String(limit) });
-      if (search) params.set("search", search);
-      return (await api.get<SellableItem[]>(`/sellable-items?${params.toString()}`)).data;
-    },
-    enabled: !!token && !!orgId,
+    queryKey: ["outstanding", orgId, direction, partyId],
+    queryFn: async () =>
+      (
+        await api.get<OutstandingDocument[]>(
+          `/outstanding-documents?direction=${direction}&party_id=${partyId}`,
+        )
+      ).data,
+    enabled: !!token && !!orgId && !!partyId,
   });
 }

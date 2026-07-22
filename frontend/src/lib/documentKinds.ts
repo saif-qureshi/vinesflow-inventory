@@ -1,5 +1,4 @@
-import type { DocumentStatus } from "@/types";
-import type { PartyRole } from "@/types";
+import type { DocumentStatus, PartyRole, PaymentDirection } from "@/types";
 
 export type DocumentKind = "invoice" | "bill";
 
@@ -9,6 +8,7 @@ export interface DocumentKindConfig {
   basePath: string;
   permission: string;
   partyRole: PartyRole;
+  paymentDirection: PaymentDirection;
   priceField: "sale_price" | "purchase_price";
   labels: {
     singular: string;
@@ -30,6 +30,7 @@ export const INVOICE_CONFIG: DocumentKindConfig = {
   basePath: "/sales/invoices",
   permission: "invoices",
   partyRole: "customer",
+  paymentDirection: "received",
   priceField: "sale_price",
   labels: {
     singular: "Invoice",
@@ -50,6 +51,7 @@ export const BILL_CONFIG: DocumentKindConfig = {
   basePath: "/purchases/bills",
   permission: "bills",
   partyRole: "vendor",
+  paymentDirection: "made",
   priceField: "purchase_price",
   labels: {
     singular: "Bill",

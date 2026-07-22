@@ -1,6 +1,8 @@
 import type { Address } from "./party";
 
-export type DocumentStatus = "draft" | "sent" | "partially_paid" | "paid" | "void";
+export type DocumentStatus = "draft" | "sent" | "void";
+
+export type DocumentPaymentStatus = "unpaid" | "partial" | "paid";
 
 export type DiscountType = "amount" | "percent";
 
@@ -30,6 +32,7 @@ export interface DocumentRecord {
   type: string;
   number: string;
   status: DocumentStatus;
+  payment_status: DocumentPaymentStatus;
   party_id: number | null;
   party: DocumentParty | null;
   warehouse_id: number | null;
@@ -59,6 +62,7 @@ export interface DocumentSummary {
   id: number;
   number: string;
   status: DocumentStatus;
+  payment_status: DocumentPaymentStatus;
   issue_date: string;
   due_date: string | null;
   currency: string;

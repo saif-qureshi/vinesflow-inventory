@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Descriptions, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ArrowLeft, Ban, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, Pencil, Trash2, Wallet } from "lucide-react";
 
 import { App, Button, Card, Popconfirm, Tag, Typography } from "@/components/ui";
+import { PaymentModal } from "@/components/payments/PaymentModal";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
   useDeleteDocument,
@@ -16,9 +18,10 @@ import {
 import { useCan } from "@/hooks/useSession";
 import { apiErrorMessage } from "@/lib/api";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
+import { PAYMENT_CONFIG } from "@/lib/paymentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentLine } from "@/types";
-import { statusMeta } from "./status";
+import { documentBadge } from "./status";
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -40,6 +43,7 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   const finalize = useFinalizeDocument(config.apiPath);
   const voidDoc = useVoidDocument(config.apiPath);
   const del = useDeleteDocument(config.apiPath);
+  const [payOpen, setPayOpen] = useState(false);
 
   if (isLoading || !doc) {
     return (
@@ -50,7 +54,7 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   }
 
   const dash = <span className="text-gray-400">—</span>;
-  const meta = statusMeta(doc.status, config);
+  const meta = documentBadge(doc.status, doc.payment_status);
   const isDraft = doc.status === "draft";
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
@@ -140,6 +144,14 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
               </Button>
             </>
           )}
+          {doc.status === "sent" &&
+            doc.payment_status !== "paid" &&
+            Number(doc.balance_due) > 0 &&
+            can("payments:create") && (
+              <Button type="primary" icon={<Wallet size={16} />} onClick={() => setPayOpen(true)}>
+                Record Payment
+              </Button>
+            )}
           {!isDraft && doc.status !== "void" && can(`${config.permission}:update`) && (
             <Popconfirm
               title={`Void this ${config.labels.singular.toLowerCase()}?`}
@@ -232,6 +244,13 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
           </div>
         </Card>
       )}
+
+      <PaymentModal
+        config={PAYMENT_CONFIG[config.paymentDirection]}
+        document={doc}
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+      />
     </div>
   );
 }

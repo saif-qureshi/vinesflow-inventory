@@ -8,12 +8,25 @@ export type {
   DocumentLine,
   DocumentLineInput,
   DocumentParty,
+  DocumentPaymentStatus,
   DocumentRecord,
   DocumentStatus,
   DocumentSummary,
   SellableItem,
   TaxRate,
 } from "./document";
+export type {
+  OutstandingDocument,
+  PaymentAllocation,
+  PaymentAllocationInput,
+  PaymentDirection,
+  PaymentInput,
+  PaymentMethod,
+  PaymentParty,
+  PaymentRecord,
+  PaymentStatus,
+  PaymentSummary,
+} from "./payment";
 export type { Media, MediaInput } from "./media";
 export type {
   InventoryItem,

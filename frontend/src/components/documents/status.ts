@@ -1,25 +1,21 @@
-import type { DocumentKindConfig } from "@/lib/documentKinds";
-import type { DocumentStatus } from "@/types";
+import type { DocumentPaymentStatus, DocumentStatus } from "@/types";
 
-const BASE: Record<DocumentStatus, { label: string; color?: string }> = {
-  draft: { label: "Draft" },
-  sent: { label: "Sent", color: "blue" },
-  partially_paid: { label: "Partially Paid", color: "orange" },
+const PAYMENT_META: Record<DocumentPaymentStatus, { label: string; color?: string }> = {
+  unpaid: { label: "Unpaid", color: "gold" },
+  partial: { label: "Partially Paid", color: "orange" },
   paid: { label: "Paid", color: "green" },
-  void: { label: "Void", color: "red" },
 };
 
-export function statusMeta(status: DocumentStatus, config?: DocumentKindConfig) {
-  const base = BASE[status];
-  return {
-    label: config?.statusOverrides?.[status] ?? base?.label ?? status,
-    color: base?.color,
-  };
+export function documentBadge(status: DocumentStatus, paymentStatus: DocumentPaymentStatus) {
+  if (status === "void") return { label: "Void", color: "red" };
+  if (status === "draft") return { label: "Draft", color: undefined };
+  return PAYMENT_META[paymentStatus] ?? { label: paymentStatus, color: undefined };
 }
 
-export function statusOptions(config?: DocumentKindConfig) {
-  return (Object.keys(BASE) as DocumentStatus[]).map((value) => ({
-    value,
-    label: statusMeta(value, config).label,
-  }));
-}
+export const DOCUMENT_FILTER_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "partial", label: "Partially Paid" },
+  { value: "paid", label: "Paid" },
+  { value: "void", label: "Void" },
+];

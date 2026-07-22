@@ -15,7 +15,7 @@ import { apiErrorMessage } from "@/lib/api";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentSummary } from "@/types";
-import { statusMeta, statusOptions } from "./status";
+import { DOCUMENT_FILTER_OPTIONS, documentBadge } from "./status";
 
 export function DocumentList({ config }: { config: DocumentKindConfig }) {
   const router = useRouter();
@@ -32,6 +32,15 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
   const items = data?.pages.flatMap((p) => p.items) ?? [];
   const patch = (f: Partial<DocumentFilters>) => setFilters((prev) => ({ ...prev, ...f }));
   const dash = <span className="text-gray-400">—</span>;
+
+  const applyBadgeFilter = (value?: string) => {
+    if (!value) return patch({ status: null, payment_status: null });
+    if (value === "draft" || value === "void")
+      return patch({ status: value as DocumentFilters["status"], payment_status: null });
+    if (value === "unpaid") return patch({ status: "sent", payment_status: "unpaid" });
+    return patch({ status: "sent", payment_status: value });
+  };
+  const badgeFilter = filters.payment_status ?? filters.status ?? undefined;
 
   const remove = async (id: number) => {
     try {
@@ -95,7 +104,7 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
       title: "Status",
       key: "status",
       render: (_, doc) => {
-        const meta = statusMeta(doc.status, config);
+        const meta = documentBadge(doc.status, doc.payment_status);
         return <Tag color={meta.color}>{meta.label}</Tag>;
       },
     },
@@ -130,11 +139,11 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
 
   const toolbar = (
     <Select
-      value={filters.status ?? undefined}
-      onChange={(v) => patch({ status: v ?? null })}
+      value={badgeFilter}
+      onChange={applyBadgeFilter}
       allowClear
       placeholder="All statuses"
-      options={statusOptions(config)}
+      options={DOCUMENT_FILTER_OPTIONS}
       className="!w-44"
     />
   );
