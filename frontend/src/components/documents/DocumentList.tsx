@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { Select } from "antd";
 import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Eye, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, Eye, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { App, Button, DataTable, Dropdown, PageHeader, Tag, Typography } from "@/components/ui";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useDeleteDocument, useDocumentList, type DocumentFilters } from "@/hooks/useDocuments";
 import { useCan } from "@/hooks/useSession";
 import { apiErrorMessage } from "@/lib/api";
+import { downloadDocumentPdf } from "@/lib/documentPdf";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentSummary } from "@/types";
@@ -57,6 +58,18 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
       icon: <Eye size={14} />,
       label: "View",
       onClick: () => router.push(`${config.basePath}/${doc.id}`),
+    },
+    {
+      key: "download",
+      icon: <Download size={14} />,
+      label: `Download ${config.labels.singular}`,
+      onClick: async () => {
+        try {
+          await downloadDocumentPdf(config.apiPath, doc.id, doc.number);
+        } catch (err) {
+          message.error(apiErrorMessage(err));
+        }
+      },
     },
     ...(doc.status === "draft" && can(`${config.permission}:update`)
       ? [

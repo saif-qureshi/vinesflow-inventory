@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Descriptions, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ArrowLeft, Ban, CheckCircle2, Pencil, Printer, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, Download, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
 
-import { App, Button, Card, Popconfirm, Tag, Typography } from "@/components/ui";
+import { App, Button, Card, Dropdown, Popconfirm, Tag, Typography } from "@/components/ui";
 import { PaymentModal } from "@/components/payments/PaymentModal";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
@@ -16,7 +16,8 @@ import {
   useVoidDocument,
 } from "@/hooks/useDocuments";
 import { useCan } from "@/hooks/useSession";
-import { api, apiErrorMessage } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api";
+import { downloadDocumentPdf } from "@/lib/documentPdf";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { PAYMENT_CONFIG } from "@/lib/paymentKinds";
 import { formatDate } from "@/lib/format";
@@ -58,18 +59,10 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   const isDraft = doc.status === "draft";
   const paidMeta = PAYMENT_META[doc.payment_status];
 
-  const openPdf = async () => {
+  const downloadPdf = async () => {
     setPrinting(true);
     try {
-      const res = await api.get(`/${config.apiPath}/${doc.id}/pdf`, { responseType: "blob" });
-      const url = URL.createObjectURL(res.data as Blob);
-      if (!window.open(url, "_blank")) {
-        const link = window.document.createElement("a");
-        link.href = url;
-        link.download = `${doc.number}.pdf`;
-        link.click();
-      }
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      await downloadDocumentPdf(config.apiPath, doc.id, doc.number);
     } catch (err) {
       message.error(apiErrorMessage(err));
     } finally {
@@ -145,9 +138,6 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button icon={<Printer size={16} />} loading={printing} onClick={openPdf}>
-            Print
-          </Button>
           {isDraft && can(`${config.permission}:update`) && (
             <>
               <Button
@@ -204,6 +194,22 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
               <Button danger icon={<Trash2 size={16} />} />
             </Popconfirm>
           )}
+          <Dropdown
+            trigger={["click"]}
+            placement="bottomRight"
+            menu={{
+              items: [
+                {
+                  key: "download",
+                  icon: <Download size={14} />,
+                  label: `Download ${config.labels.singular}`,
+                  onClick: downloadPdf,
+                },
+              ],
+            }}
+          >
+            <Button icon={<MoreHorizontal size={16} />} loading={printing} />
+          </Dropdown>
         </div>
       </div>
 
