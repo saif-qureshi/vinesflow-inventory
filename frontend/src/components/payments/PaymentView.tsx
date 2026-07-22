@@ -3,11 +3,16 @@
 import { useRouter } from "next/navigation";
 import { Descriptions, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ArrowLeft, Ban } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, Trash2 } from "lucide-react";
 
 import { App, Button, Card, Popconfirm, Tag, Typography } from "@/components/ui";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useCancelPayment, usePayment } from "@/hooks/usePayments";
+import {
+  useCancelPayment,
+  useDeletePayment,
+  usePayment,
+  useSubmitPayment,
+} from "@/hooks/usePayments";
 import { useCan } from "@/hooks/useSession";
 import { apiErrorMessage } from "@/lib/api";
 import type { PaymentKindConfig } from "@/lib/paymentKinds";
@@ -21,7 +26,9 @@ export function PaymentView({ config, id }: { config: PaymentKindConfig; id: num
   const { money } = useCurrency();
   const can = useCan();
   const { data: pay, isLoading } = usePayment(config.apiPath, id);
+  const submit = useSubmitPayment(config.apiPath);
   const cancel = useCancelPayment(config.apiPath);
+  const del = useDeletePayment(config.apiPath);
 
   if (isLoading || !pay) {
     return (
@@ -34,10 +41,10 @@ export function PaymentView({ config, id }: { config: PaymentKindConfig; id: num
   const dash = <span className="text-gray-400">—</span>;
   const meta = PAYMENT_STATUS_META[pay.status];
 
-  const doCancel = async () => {
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
-      await cancel.mutateAsync(pay.id);
-      message.success("Payment cancelled");
+      await fn();
+      message.success(ok);
     } catch (err) {
       message.error(apiErrorMessage(err));
     }
@@ -73,19 +80,44 @@ export function PaymentView({ config, id }: { config: PaymentKindConfig; id: num
             </div>
           </div>
         </div>
-        {pay.status === "submitted" && can("payments:update") && (
-          <Popconfirm
-            title="Cancel this payment?"
-            description="Settlements will be reversed."
-            okText="Cancel payment"
-            okButtonProps={{ danger: true, loading: cancel.isPending }}
-            onConfirm={doCancel}
-          >
-            <Button danger icon={<Ban size={16} />}>
-              Cancel
+        <div className="flex items-center gap-2">
+          {pay.status === "draft" && can("payments:update") && (
+            <Button
+              type="primary"
+              icon={<CheckCircle2 size={16} />}
+              loading={submit.isPending}
+              onClick={() => run(() => submit.mutateAsync(pay.id), "Payment submitted")}
+            >
+              Submit
             </Button>
-          </Popconfirm>
-        )}
+          )}
+          {pay.status === "draft" && can("payments:delete") && (
+            <Popconfirm
+              title="Delete this draft?"
+              okText="Delete"
+              okButtonProps={{ danger: true, loading: del.isPending }}
+              onConfirm={async () => {
+                await run(() => del.mutateAsync(pay.id), "Payment deleted");
+                router.push(config.basePath);
+              }}
+            >
+              <Button danger icon={<Trash2 size={16} />} />
+            </Popconfirm>
+          )}
+          {pay.status === "submitted" && can("payments:update") && (
+            <Popconfirm
+              title="Cancel this payment?"
+              description="Settlements will be reversed."
+              okText="Cancel payment"
+              okButtonProps={{ danger: true, loading: cancel.isPending }}
+              onConfirm={() => run(() => cancel.mutateAsync(pay.id), "Payment cancelled")}
+            >
+              <Button danger icon={<Ban size={16} />}>
+                Cancel
+              </Button>
+            </Popconfirm>
+          )}
+        </div>
       </div>
 
       <Card className="border-gray-100">

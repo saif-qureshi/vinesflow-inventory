@@ -21,7 +21,7 @@ import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { PAYMENT_CONFIG } from "@/lib/paymentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentLine } from "@/types";
-import { documentBadge } from "./status";
+import { LIFECYCLE_META, PAYMENT_META } from "./status";
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -54,8 +54,8 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   }
 
   const dash = <span className="text-gray-400">—</span>;
-  const meta = documentBadge(doc.status, doc.payment_status);
   const isDraft = doc.status === "draft";
+  const paidMeta = PAYMENT_META[doc.payment_status];
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -118,7 +118,8 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
               {doc.number}
             </Typography.Title>
             <div className="flex flex-wrap items-center gap-2">
-              <Tag color={meta.color}>{meta.label}</Tag>
+              <Tag color={LIFECYCLE_META[doc.status].color}>{LIFECYCLE_META[doc.status].label}</Tag>
+              {doc.status === "sent" && <Tag color={paidMeta.color}>{paidMeta.label}</Tag>}
               <Typography.Text type="secondary">{doc.party?.name}</Typography.Text>
             </div>
           </div>
@@ -196,6 +197,12 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
           </Descriptions.Item>
           <Descriptions.Item label={config.labels.referenceLabel}>
             {doc.reference || dash}
+          </Descriptions.Item>
+          <Descriptions.Item label="Amount paid">
+            <span className="tabular-nums">{money(Number(doc.amount_paid))}</span>
+          </Descriptions.Item>
+          <Descriptions.Item label="Balance due">
+            <span className="tabular-nums font-medium">{money(Number(doc.balance_due))}</span>
           </Descriptions.Item>
         </Descriptions>
       </Card>

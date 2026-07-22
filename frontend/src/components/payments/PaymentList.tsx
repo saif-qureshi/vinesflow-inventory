@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Select } from "antd";
 import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Ban, Eye, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Ban, CheckCircle2, Eye, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 
 import { App, Button, DataTable, Dropdown, PageHeader, Tag, Typography } from "@/components/ui";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -13,6 +13,7 @@ import {
   useCancelPayment,
   useDeletePayment,
   usePaymentList,
+  useSubmitPayment,
   type PaymentFilters,
 } from "@/hooks/usePayments";
 import { useCan } from "@/hooks/useSession";
@@ -33,6 +34,7 @@ export function PaymentList({ config }: { config: PaymentKindConfig }) {
     config.apiPath,
     filters,
   );
+  const submit = useSubmitPayment(config.apiPath);
   const cancel = useCancelPayment(config.apiPath);
   const del = useDeletePayment(config.apiPath);
   const [modalOpen, setModalOpen] = useState(false);
@@ -56,6 +58,16 @@ export function PaymentList({ config }: { config: PaymentKindConfig }) {
       label: "View",
       onClick: () => router.push(`${config.basePath}/${p.id}`),
     },
+    ...(p.status === "draft" && can("payments:update")
+      ? [
+          {
+            key: "submit",
+            icon: <CheckCircle2 size={14} />,
+            label: "Submit",
+            onClick: () => run(() => submit.mutateAsync(p.id), "Payment submitted"),
+          },
+        ]
+      : []),
     ...(p.status === "submitted" && can("payments:update")
       ? [
           {

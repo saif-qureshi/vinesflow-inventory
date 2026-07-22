@@ -69,15 +69,28 @@ export function PaymentModal({
   const setApply = (docId: number, value: number) =>
     setApplied((prev) => ({ ...prev, [docId]: value }));
 
-  const autoApply = () => {
-    let remaining = amount;
+  const distribute = (amt: number): Record<number, number> => {
+    const ordered = [...rows];
+    if (document) {
+      ordered.sort(
+        (a, b) => Number(b.id === document.id) - Number(a.id === document.id),
+      );
+    }
+    let remaining = amt;
     const next: Record<number, number> = {};
-    for (const doc of rows) {
+    for (const doc of ordered) {
       const apply = Math.min(Number(doc.balance_due), Math.max(remaining, 0));
       if (apply > 0) next[doc.id] = apply;
       remaining -= apply;
     }
-    setApplied(next);
+    return next;
+  };
+
+  const autoApply = () => setApplied(distribute(amount));
+
+  const onAmountChange = (v: number) => {
+    setAmount(v);
+    if (rows.length) setApplied(distribute(v));
   };
 
   const columns: ColumnsType<OutstandingDocument> = [
@@ -178,7 +191,7 @@ export function PaymentModal({
         </div>
         <div>
           <div className="mb-1 text-sm font-medium">Amount</div>
-          <InputNumber className="!w-full" min={0} prefix={currency} value={amount} onChange={(v) => setAmount(v ?? 0)} />
+          <InputNumber className="!w-full" min={0} prefix={currency} value={amount} onChange={(v) => onAmountChange(v ?? 0)} />
         </div>
         <div>
           <div className="mb-1 text-sm font-medium">Method</div>

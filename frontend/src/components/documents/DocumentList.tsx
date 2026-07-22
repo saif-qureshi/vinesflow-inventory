@@ -15,7 +15,7 @@ import { apiErrorMessage } from "@/lib/api";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentSummary } from "@/types";
-import { DOCUMENT_FILTER_OPTIONS, documentBadge } from "./status";
+import { DOCUMENT_FILTER_OPTIONS, LIFECYCLE_META, PAYMENT_META } from "./status";
 
 export function DocumentList({ config }: { config: DocumentKindConfig }) {
   const router = useRouter();
@@ -103,10 +103,16 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
     {
       title: "Status",
       key: "status",
-      render: (_, doc) => {
-        const meta = documentBadge(doc.status, doc.payment_status);
-        return <Tag color={meta.color}>{meta.label}</Tag>;
-      },
+      render: (_, doc) => (
+        <div className="flex flex-wrap gap-1">
+          <Tag color={LIFECYCLE_META[doc.status].color}>{LIFECYCLE_META[doc.status].label}</Tag>
+          {doc.status === "sent" && (
+            <Tag color={PAYMENT_META[doc.payment_status].color}>
+              {PAYMENT_META[doc.payment_status].label}
+            </Tag>
+          )}
+        </div>
+      ),
     },
     {
       title: "Total",
