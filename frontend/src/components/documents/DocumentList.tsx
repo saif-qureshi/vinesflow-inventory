@@ -16,7 +16,7 @@ import { downloadDocumentPdf } from "@/lib/documentPdf";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentSummary } from "@/types";
-import { DOCUMENT_FILTER_OPTIONS, LIFECYCLE_META, PAYMENT_META } from "./status";
+import { documentFilterOptions, lifecycleMeta, PAYMENT_META } from "./status";
 
 export function DocumentList({ config }: { config: DocumentKindConfig }) {
   const router = useRouter();
@@ -36,7 +36,7 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
 
   const applyBadgeFilter = (value?: string) => {
     if (!value) return patch({ status: null, payment_status: null });
-    if (value === "draft" || value === "void")
+    if (["draft", "sent", "closed", "void"].includes(value))
       return patch({ status: value as DocumentFilters["status"], payment_status: null });
     if (value === "unpaid") return patch({ status: "sent", payment_status: "unpaid" });
     return patch({ status: "sent", payment_status: value });
@@ -116,16 +116,19 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
     {
       title: "Status",
       key: "status",
-      render: (_, doc) => (
-        <div className="flex flex-wrap gap-1">
-          <Tag color={LIFECYCLE_META[doc.status].color}>{LIFECYCLE_META[doc.status].label}</Tag>
-          {doc.status === "sent" && (
-            <Tag color={PAYMENT_META[doc.payment_status].color}>
-              {PAYMENT_META[doc.payment_status].label}
-            </Tag>
-          )}
-        </div>
-      ),
+      render: (_, doc) => {
+        const life = lifecycleMeta(doc.status, config);
+        return (
+          <div className="flex flex-wrap gap-1">
+            <Tag color={life.color}>{life.label}</Tag>
+            {config.tracksPayment && doc.status === "sent" && (
+              <Tag color={PAYMENT_META[doc.payment_status].color}>
+                {PAYMENT_META[doc.payment_status].label}
+              </Tag>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: "Total",
@@ -133,14 +136,18 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
       align: "right",
       render: (_, doc) => <span className="tabular-nums">{money(Number(doc.total))}</span>,
     },
-    {
-      title: "Balance due",
-      key: "balance",
-      align: "right",
-      render: (_, doc) => (
-        <span className="tabular-nums font-medium">{money(Number(doc.balance_due))}</span>
-      ),
-    },
+    ...(config.tracksPayment
+      ? [
+          {
+            title: "Balance due",
+            key: "balance",
+            align: "right" as const,
+            render: (_: unknown, doc: DocumentSummary) => (
+              <span className="tabular-nums font-medium">{money(Number(doc.balance_due))}</span>
+            ),
+          },
+        ]
+      : []),
     {
       title: "",
       key: "actions",
@@ -162,7 +169,7 @@ export function DocumentList({ config }: { config: DocumentKindConfig }) {
       onChange={applyBadgeFilter}
       allowClear
       placeholder="All statuses"
-      options={DOCUMENT_FILTER_OPTIONS}
+      options={documentFilterOptions(config)}
       className="!w-44"
     />
   );

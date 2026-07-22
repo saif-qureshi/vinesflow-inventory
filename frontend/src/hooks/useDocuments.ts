@@ -89,6 +89,21 @@ export function useUpdateDocument(apiPath: string) {
   });
 }
 
+export function useConvertDocument(apiPath: string) {
+  const invalidate = useInvalidate(apiPath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: number; target: string }) =>
+      (await api.post<DocumentRecord>(`/${apiPath}/${vars.id}/convert`, { target: vars.target }))
+        .data,
+    onSuccess: (_res, vars) => {
+      invalidate(vars.id);
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["delivery-challans"] });
+    },
+  });
+}
+
 export function useFinalizeDocument(apiPath: string) {
   const invalidate = useInvalidate(apiPath);
   return useMutation({

@@ -4,12 +4,23 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Descriptions, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ArrowLeft, Ban, CheckCircle2, Download, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  Ban,
+  CheckCircle2,
+  Download,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 
 import { App, Button, Card, Dropdown, Popconfirm, Tag, Typography } from "@/components/ui";
 import { PaymentModal } from "@/components/payments/PaymentModal";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
+  useConvertDocument,
   useDeleteDocument,
   useDocument,
   useFinalizeDocument,
@@ -22,7 +33,12 @@ import type { DocumentKindConfig } from "@/lib/documentKinds";
 import { PAYMENT_CONFIG } from "@/lib/paymentKinds";
 import { formatDate } from "@/lib/format";
 import type { DocumentLine } from "@/types";
-import { LIFECYCLE_META, PAYMENT_META } from "./status";
+import { lifecycleMeta, PAYMENT_META } from "./status";
+
+const CONVERT_TARGET_PATH: Record<string, string> = {
+  delivery_challan: "/sales/challans",
+  invoice: "/sales/invoices",
+};
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -44,6 +60,7 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
   const finalize = useFinalizeDocument(config.apiPath);
   const voidDoc = useVoidDocument(config.apiPath);
   const del = useDeleteDocument(config.apiPath);
+  const convert = useConvertDocument(config.apiPath);
   const [payOpen, setPayOpen] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -57,6 +74,7 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
 
   const dash = <span className="text-gray-400">—</span>;
   const isDraft = doc.status === "draft";
+  const life = lifecycleMeta(doc.status, config);
   const paidMeta = PAYMENT_META[doc.payment_status];
 
   const downloadPdf = async () => {
@@ -131,13 +149,38 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
               {doc.number}
             </Typography.Title>
             <div className="flex flex-wrap items-center gap-2">
-              <Tag color={LIFECYCLE_META[doc.status].color}>{LIFECYCLE_META[doc.status].label}</Tag>
-              {doc.status === "sent" && <Tag color={paidMeta.color}>{paidMeta.label}</Tag>}
+              <Tag color={life.color}>{life.label}</Tag>
+              {config.tracksPayment && doc.status === "sent" && (
+                <Tag color={paidMeta.color}>{paidMeta.label}</Tag>
+              )}
               <Typography.Text type="secondary">{doc.party?.name}</Typography.Text>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {doc.status === "sent" &&
+            can(`${config.permission}:update`) &&
+            (config.conversions ?? []).map((conversion) => (
+              <Button
+                key={conversion.target}
+                icon={<ArrowRightLeft size={16} />}
+                loading={convert.isPending}
+                onClick={async () => {
+                  try {
+                    const created = await convert.mutateAsync({
+                      id: doc.id,
+                      target: conversion.target,
+                    });
+                    message.success(`Created ${created.number}`);
+                    router.push(`${CONVERT_TARGET_PATH[conversion.target]}/${created.id}`);
+                  } catch (err) {
+                    message.error(apiErrorMessage(err));
+                  }
+                }}
+              >
+                {conversion.label}
+              </Button>
+            ))}
           {isDraft && can(`${config.permission}:update`) && (
             <>
               <Button
@@ -158,7 +201,8 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
               </Button>
             </>
           )}
-          {doc.status === "sent" &&
+          {config.tracksPayment &&
+            doc.status === "sent" &&
             doc.payment_status !== "paid" &&
             Number(doc.balance_due) > 0 &&
             can("payments:create") && (
@@ -227,12 +271,16 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
           <Descriptions.Item label={config.labels.referenceLabel}>
             {doc.reference || dash}
           </Descriptions.Item>
-          <Descriptions.Item label="Amount paid">
-            <span className="tabular-nums">{money(Number(doc.amount_paid))}</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="Balance due">
-            <span className="tabular-nums font-medium">{money(Number(doc.balance_due))}</span>
-          </Descriptions.Item>
+          {config.tracksPayment && (
+            <Descriptions.Item label="Amount paid">
+              <span className="tabular-nums">{money(Number(doc.amount_paid))}</span>
+            </Descriptions.Item>
+          )}
+          {config.tracksPayment && (
+            <Descriptions.Item label="Balance due">
+              <span className="tabular-nums font-medium">{money(Number(doc.balance_due))}</span>
+            </Descriptions.Item>
+          )}
         </Descriptions>
       </Card>
 
@@ -256,8 +304,12 @@ export function DocumentView({ config, id }: { config: DocumentKindConfig; id: n
               <Row label="Adjustment" value={money(Number(doc.adjustment))} />
             )}
             <Row label="Total" value={money(Number(doc.total))} strong />
-            <Row label="Amount paid" value={money(Number(doc.amount_paid))} />
-            <Row label="Balance due" value={money(Number(doc.balance_due))} strong />
+            {config.tracksPayment && (
+              <Row label="Amount paid" value={money(Number(doc.amount_paid))} />
+            )}
+            {config.tracksPayment && (
+              <Row label="Balance due" value={money(Number(doc.balance_due))} strong />
+            )}
           </div>
         </div>
       </Card>

@@ -1,6 +1,6 @@
 import type { Address } from "./party";
 
-export type DocumentStatus = "draft" | "sent" | "void";
+export type DocumentStatus = "draft" | "sent" | "closed" | "void";
 
 export type DocumentPaymentStatus = "unpaid" | "partial" | "paid";
 

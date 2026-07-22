@@ -11,6 +11,8 @@ MODULE_ACTIONS: dict[str, list[str]] = {
     "orgs": ["read", "update", "delete"],
     "users": ["create", "read", "update", "delete"],
     "roles": ["create", "read", "update", "delete"],
+    "sales_orders": ["create", "read", "update", "delete"],
+    "delivery_challans": ["create", "read", "update", "delete"],
     "invoices": ["create", "read", "update", "delete"],
     "bills": ["create", "read", "update", "delete"],
     "parties": ["create", "read", "update", "delete"],
@@ -24,6 +26,8 @@ MODULE_LABELS: dict[str, str] = {
     "orgs": "Organization",
     "users": "Users",
     "roles": "Roles & Permissions",
+    "sales_orders": "Sales Orders",
+    "delivery_challans": "Delivery Challans",
     "invoices": "Invoices",
     "bills": "Bills",
     "parties": "Customers & Vendors",
@@ -68,6 +72,8 @@ DEFAULT_ROLES: dict[str, dict] = {
         "permissions": _codes_for(
             {
                 "users": ["read"],
+                "sales_orders": ["create", "read", "update"],
+                "delivery_challans": ["create", "read", "update"],
                 "invoices": ["create", "read", "update"],
                 "bills": ["create", "read", "update"],
                 "parties": ["create", "read", "update"],
@@ -83,6 +89,8 @@ DEFAULT_ROLES: dict[str, dict] = {
         "description": "Read-only access to business data.",
         "permissions": _codes_for(
             {
+                "sales_orders": ["read"],
+                "delivery_challans": ["read"],
                 "invoices": ["read"],
                 "bills": ["read"],
                 "parties": ["read"],

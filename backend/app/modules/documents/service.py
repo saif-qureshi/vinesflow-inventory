@@ -18,10 +18,12 @@ from app.modules.documents.enums import (
 )
 from app.modules.documents.models import (
     Bill,
+    DeliveryChallan,
     Document,
     DocumentLine,
     DocumentSequence,
     Invoice,
+    SalesOrder,
     TaxRate,
 )
 from app.modules.documents.numbering import next_number
@@ -45,9 +47,20 @@ _HUNDRED = Decimal("100")
 DEFAULT_TAX_RATES = [("GST 18%", Decimal("18")), ("Exempt", Decimal("0"))]
 
 DOCUMENT_CLASSES: dict[DocumentType, type[Document]] = {
+    DocumentType.SALES_ORDER: SalesOrder,
+    DocumentType.DELIVERY_CHALLAN: DeliveryChallan,
     DocumentType.INVOICE: Invoice,
     DocumentType.BILL: Bill,
 }
+
+# What a finalized document can be turned into.
+CONVERSIONS: dict[DocumentType, list[DocumentType]] = {
+    DocumentType.SALES_ORDER: [DocumentType.DELIVERY_CHALLAN, DocumentType.INVOICE],
+    DocumentType.DELIVERY_CHALLAN: [DocumentType.INVOICE],
+}
+
+# Orders stop committing stock once they have been converted.
+CLOSED_ON_CONVERT = {DocumentType.SALES_ORDER}
 
 SALES_TYPES = {
     DocumentType.SALES_ORDER,
@@ -334,6 +347,69 @@ class DocumentService:
         self.db.refresh(doc)
         return doc
 
+    def _source_moved_stock(self, doc: Document) -> bool:
+        """True when the document this one came from already shipped/received the
+        goods, so finalizing must not move the same stock twice."""
+        if doc.source_document_id is None:
+            return False
+        source = self.db.get(Document, doc.source_document_id)
+        return bool(source and source.stock_posted)
+
+    def convert(
+        self, org_id: int, doc_id: int, source_type: DocumentType, target_type: DocumentType
+    ) -> Document:
+        source = self.get_of_type(org_id, doc_id, source_type)
+        if target_type not in CONVERSIONS.get(source_type, []):
+            raise BadRequestError("That document cannot be converted to this type")
+        if source.status != DocumentStatus.SENT:
+            raise BadRequestError("Only a finalized document can be converted")
+
+        line_inputs = [
+            DocumentLineInput(
+                product_id=line.product_id,
+                description=line.description,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
+                discount_type=line.discount_type,
+                discount_value=line.discount_value,
+                tax_rate_id=line.tax_rate_id,
+            )
+            for line in source.lines
+        ]
+        lines, subtotal, discount_total, tax_total = self._build_lines(org_id, line_inputs)
+
+        target = DOCUMENT_CLASSES[target_type](
+            org_id=org_id,
+            number=next_number(self.db, org_id, target_type, DEFAULT_PREFIXES[target_type]),
+            status=DocumentStatus.DRAFT,
+            party_id=source.party_id,
+            warehouse_id=source.warehouse_id,
+            issue_date=date.today(),
+            due_date=source.due_date,
+            reference=source.reference,
+            notes=source.notes,
+            terms=source.terms,
+            shipping=source.shipping,
+            adjustment=source.adjustment,
+            billing_address=source.billing_address,
+            shipping_address=source.shipping_address,
+            source_document_id=source.id,
+        )
+        target.lines = lines
+        self._apply_totals(target, subtotal, discount_total, tax_total)
+        self.db.add(target)
+        self.db.flush()
+
+        if source_type in CLOSED_ON_CONVERT:
+            source.status = DocumentStatus.CLOSED
+        self.activity.record(
+            org_id, "converted", source.type, source.number,
+            entity_id=source.id, context={"to": target_type, "number": target.number},
+        )
+        self.db.commit()
+        self.db.refresh(target)
+        return target
+
     def finalize(
         self, org_id: int, doc_id: int, expected_type: DocumentType | None = None
     ) -> Document:
@@ -344,12 +420,15 @@ class DocumentService:
             raise BadRequestError("Only draft documents can be finalized")
         if not doc.lines:
             raise BadRequestError("Cannot finalize a document with no lines")
-        if doc.stock_direction != 0 and any(line.product_id for line in doc.lines):
+        moves_stock = doc.stock_direction != 0 and not self._source_moved_stock(doc)
+        if moves_stock and any(line.product_id for line in doc.lines):
             if doc.warehouse_id is None:
                 doc.warehouse_id = self._default_location(org_id)
             if doc.warehouse_id is None:
                 raise BadRequestError("No warehouse available to move stock")
-        self._post_stock(org_id, doc, reverse=False)
+        if moves_stock:
+            self._post_stock(org_id, doc, reverse=False)
+            doc.stock_posted = True
         self.ledger.post_document(self.db, doc)
         doc.status = DocumentStatus.SENT
         self.activity.record(org_id, "finalized", doc.type, doc.number, entity_id=doc.id)
@@ -367,7 +446,9 @@ class DocumentService:
             raise BadRequestError("Only a finalized document can be voided")
         if doc.amount_paid > _ZERO:
             raise BadRequestError("Cannot void a document with recorded payments")
-        self._post_stock(org_id, doc, reverse=True)
+        if doc.stock_posted:
+            self._post_stock(org_id, doc, reverse=True)
+            doc.stock_posted = False
         self.ledger.reverse_document(self.db, doc)
         doc.status = DocumentStatus.VOID
         self.activity.record(org_id, "voided", doc.type, doc.number, entity_id=doc.id)

@@ -11,6 +11,7 @@ from app.core.responses import EnvelopeRoute
 from app.modules.documents.enums import DocumentType
 from app.modules.documents.print.service import DocumentPrintService
 from app.modules.documents.schemas import (
+    DocumentConvertInput,
     DocumentCreate,
     DocumentListItem,
     DocumentListQuery,
@@ -107,6 +108,15 @@ def register_document_routes(path: str, doc_type: DocumentType, module: str) -> 
     def _delete(doc_id: int, membership: Membership = drop, svc: DocumentService = Svc) -> None:
         svc.delete(membership.org_id, doc_id, doc_type)
 
+    @router.post(f"/{path}/{{doc_id}}/convert", response_model=DocumentRead, name=f"convert_{path}")
+    def _convert(
+        doc_id: int,
+        payload: DocumentConvertInput,
+        membership: Membership = edit,
+        svc: DocumentService = Svc,
+    ):
+        return svc.convert(membership.org_id, doc_id, doc_type, DocumentType(payload.target))
+
     @router.get(f"/{path}/{{doc_id}}/preview", name=f"preview_{path}")
     def _preview(
         doc_id: int,
@@ -135,5 +145,7 @@ def register_document_routes(path: str, doc_type: DocumentType, module: str) -> 
         )
 
 
+register_document_routes("sales-orders", DocumentType.SALES_ORDER, "sales_orders")
+register_document_routes("delivery-challans", DocumentType.DELIVERY_CHALLAN, "delivery_challans")
 register_document_routes("invoices", DocumentType.INVOICE, "invoices")
 register_document_routes("bills", DocumentType.BILL, "bills")

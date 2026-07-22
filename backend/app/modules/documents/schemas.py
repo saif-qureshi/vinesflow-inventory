@@ -84,6 +84,7 @@ class DocumentRead(BaseModel):
     number: str
     status: str
     payment_status: str
+    stock_posted: bool = False
     party_id: int | None = None
     party: PartySummary | None = None
     warehouse_id: int | None = None
@@ -123,6 +124,10 @@ class DocumentListItem(BaseModel):
     amount_paid: Decimal
     balance_due: Decimal
     party: PartySummary | None = None
+
+
+class DocumentConvertInput(BaseModel):
+    target: Literal["delivery_challan", "invoice"]
 
 
 class DocumentListQuery(ListQuery):

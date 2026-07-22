@@ -18,6 +18,7 @@ class DocumentType(StrEnum):
 class DocumentStatus(StrEnum):
     DRAFT = "draft"
     SENT = "sent"
+    CLOSED = "closed"
     VOID = "void"
 
 

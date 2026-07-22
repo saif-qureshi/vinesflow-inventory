@@ -111,6 +111,7 @@ class Document(Base, TimestampMixin, AuditMixin):
     source_document_id: Mapped[int | None] = mapped_column(
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
+    stock_posted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     lines: Mapped[list[DocumentLine]] = relationship(
         back_populates="document",
@@ -135,6 +136,20 @@ class Invoice(Document):
 
     stock_direction = -1
     movement_type = "sale"
+
+
+class SalesOrder(Document):
+    __mapper_args__ = {"polymorphic_identity": DocumentType.SALES_ORDER}
+
+    stock_direction = 0
+    movement_type = "sales_order"
+
+
+class DeliveryChallan(Document):
+    __mapper_args__ = {"polymorphic_identity": DocumentType.DELIVERY_CHALLAN}
+
+    stock_direction = -1
+    movement_type = "delivery"
 
 
 class Bill(Document):

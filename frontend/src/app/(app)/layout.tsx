@@ -66,6 +66,7 @@ const NAV: MenuProps["items"] = [
     children: [
       { key: "/sales/customers", label: "Customers" },
       { key: "/sales/orders", label: "Sales Orders" },
+      { key: "/sales/challans", label: "Delivery Challans" },
       { key: "/sales/invoices", label: "Invoices" },
       { key: "/sales/receipts", label: "Sales Receipts" },
       { key: "/sales/payments-received", label: "Payments Received" },

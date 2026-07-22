@@ -19,6 +19,8 @@ from app.modules.inventory.schemas import (
     StockByLocation,
     StockTransferInput,
 )
+from app.modules.documents.enums import DocumentStatus, DocumentType
+from app.modules.documents.models import Document, DocumentLine
 from app.modules.locations.models import Location
 from app.modules.products.models import Product
 
@@ -199,14 +201,30 @@ class InventoryService:
                 StockMovement.type == "opening",
             )
         )
-        committed = _ZERO
+        committed = self.committed(org_id, product_id)
         return ItemStockRead(
             on_hand=total,
             opening_stock=opening or _ZERO,
             committed=committed,
             available=total - committed,
+            to_be_shipped=committed,
             by_location=[StockByLocation(location_id=k, quantity=v) for k, v in by_location.items()],
         )
+
+    def committed(self, org_id: int, product_id: int) -> Decimal:
+        """Quantity promised by open (finalized, not yet converted) sales orders."""
+        qty = self.db.scalar(
+            select(func.coalesce(func.sum(DocumentLine.quantity), 0))
+            .select_from(DocumentLine)
+            .join(Document, Document.id == DocumentLine.document_id)
+            .where(
+                Document.org_id == org_id,
+                Document.type == DocumentType.SALES_ORDER,
+                Document.status == DocumentStatus.SENT,
+                DocumentLine.product_id == product_id,
+            )
+        )
+        return qty if qty is not None else _ZERO
 
     def on_hand(self, org_id: int, product_id: int, location_id: int) -> Decimal:
         self._validate_location(org_id, location_id)
