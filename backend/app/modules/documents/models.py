@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import AuditMixin, Base, TimestampMixin
-from app.modules.documents.enums import DocumentStatus, DocumentType
+from app.modules.documents.enums import DiscountType, DocumentStatus, DocumentType
 from app.modules.parties.models import Party
 
 _MONEY = Numeric(18, 2)
@@ -149,6 +149,8 @@ class DocumentLine(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     quantity: Mapped[Decimal] = mapped_column(_QTY, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(_MONEY, nullable=False)
+    discount_type: Mapped[str] = mapped_column(String(10), default=DiscountType.AMOUNT, nullable=False)
+    discount_value: Mapped[Decimal] = mapped_column(_MONEY, default=0, nullable=False)
     discount: Mapped[Decimal] = mapped_column(_MONEY, default=0, nullable=False)
     tax_rate_id: Mapped[int | None] = mapped_column(
         ForeignKey("tax_rates.id", ondelete="SET NULL"), nullable=True

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.pagination import ListQuery
 
@@ -13,8 +14,15 @@ class DocumentLineInput(BaseModel):
     description: str = Field(min_length=1, max_length=500)
     quantity: Decimal = Field(gt=0)
     unit_price: Decimal = Field(ge=0)
-    discount: Decimal = Field(default=Decimal("0"), ge=0)
+    discount_type: Literal["amount", "percent"] = "amount"
+    discount_value: Decimal = Field(default=Decimal("0"), ge=0)
     tax_rate_id: int | None = None
+
+    @model_validator(mode="after")
+    def _cap_percentage(self) -> "DocumentLineInput":
+        if self.discount_type == "percent" and self.discount_value > 100:
+            raise ValueError("A percentage discount cannot exceed 100%")
+        return self
 
 
 class DocumentCreate(BaseModel):
@@ -59,6 +67,8 @@ class DocumentLineRead(BaseModel):
     description: str
     quantity: Decimal
     unit_price: Decimal
+    discount_type: str
+    discount_value: Decimal
     discount: Decimal
     tax_rate_id: int | None = None
     tax_amount: Decimal

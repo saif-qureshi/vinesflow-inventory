@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DatePicker, InputNumber, Table } from "antd";
+import { DatePicker, InputNumber, Segmented, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { Package, Plus, Trash2 } from "lucide-react";
@@ -29,7 +29,7 @@ import { useParties } from "@/hooks/useParties";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { apiErrorMessage } from "@/lib/api";
 import type { DocumentKindConfig } from "@/lib/documentKinds";
-import type { DocumentInput, DocumentRecord } from "@/types";
+import type { DiscountType, DocumentInput, DocumentRecord } from "@/types";
 
 interface LineRow {
   key: string;
@@ -37,7 +37,8 @@ interface LineRow {
   description: string;
   quantity: number;
   unit_price: number;
-  discount: number;
+  discount_type: DiscountType;
+  discount_value: number;
   tax_rate_id: number | null;
 }
 
@@ -62,9 +63,16 @@ const emptyLine = (): LineRow => ({
   description: "",
   quantity: 1,
   unit_price: 0,
-  discount: 0,
+  discount_type: "amount",
+  discount_value: 0,
   tax_rate_id: null,
 });
+
+const lineDiscount = (row: LineRow): number => {
+  const base = row.quantity * row.unit_price;
+  const raw = row.discount_type === "percent" ? (base * row.discount_value) / 100 : row.discount_value;
+  return Math.min(raw, base);
+};
 
 export function DocumentForm({
   config,
@@ -94,7 +102,8 @@ export function DocumentForm({
           description: l.description,
           quantity: Number(l.quantity),
           unit_price: Number(l.unit_price),
-          discount: Number(l.discount),
+          discount_type: l.discount_type,
+          discount_value: Number(l.discount_value),
           tax_rate_id: l.tax_rate_id,
         }))
       : [emptyLine()],
@@ -103,6 +112,9 @@ export function DocumentForm({
   const [adjustment, setAdjustment] = useState(Number(document?.adjustment ?? 0));
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([]);
   const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [discountMode, setDiscountMode] = useState<DiscountType>(
+    () => document?.lines[0]?.discount_type ?? "amount",
+  );
 
   const isEdit = !!document;
   const saving = create.isPending || update.isPending;
@@ -130,9 +142,10 @@ export function DocumentForm({
     let taxTotal = 0;
     for (const line of lines) {
       const base = line.quantity * line.unit_price;
-      const taxable = base - line.discount;
+      const discount = lineDiscount(line);
+      const taxable = base - discount;
       subtotal += base;
-      discountTotal += line.discount;
+      discountTotal += discount;
       taxTotal += (taxable * rateOf(line.tax_rate_id)) / 100;
     }
     return {
@@ -148,9 +161,14 @@ export function DocumentForm({
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   const addLine = (focus = false) => {
-    const line = emptyLine();
+    const line = { ...emptyLine(), discount_type: discountMode };
     setLines((prev) => [...prev, line]);
     if (focus) setFocusKey(line.key);
+  };
+
+  const changeDiscountMode = (mode: DiscountType) => {
+    setDiscountMode(mode);
+    setLines((prev) => prev.map((l) => ({ ...l, discount_type: mode })));
   };
 
   const removeLines = (keys: React.Key[]) => {
@@ -252,15 +270,30 @@ export function DocumentForm({
       ),
     },
     {
-      title: "Discount",
+      title: (
+        <div className="flex items-center justify-between gap-2">
+          <span>Discount</span>
+          <Segmented
+            size="small"
+            value={discountMode}
+            onChange={(v) => changeDiscountMode(v as DiscountType)}
+            options={[
+              { label: "%", value: "percent" },
+              { label: "Fixed", value: "amount" },
+            ]}
+          />
+        </div>
+      ),
       key: "discount",
-      width: 120,
+      width: 160,
       render: (_, row) => (
         <InputNumber
           className="!w-full"
           min={0}
-          value={row.discount}
-          onChange={(v) => patchLine(row.key, { discount: v ?? 0 })}
+          max={discountMode === "percent" ? 100 : undefined}
+          value={row.discount_value}
+          onChange={(v) => patchLine(row.key, { discount_value: v ?? 0 })}
+          addonAfter={discountMode === "percent" ? "%" : currency}
         />
       ),
     },
@@ -286,7 +319,7 @@ export function DocumentForm({
       align: "right",
       width: 120,
       render: (_, row) => {
-        const taxable = row.quantity * row.unit_price - row.discount;
+        const taxable = row.quantity * row.unit_price - lineDiscount(row);
         return (
           <span className="tabular-nums">
             {money(taxable + (taxable * rateOf(row.tax_rate_id)) / 100)}
@@ -333,7 +366,8 @@ export function DocumentForm({
         description: l.description.trim() || "Item",
         quantity: l.quantity,
         unit_price: l.unit_price,
-        discount: l.discount,
+        discount_type: l.discount_type,
+        discount_value: l.discount_value,
         tax_rate_id: l.tax_rate_id,
       })),
     };
@@ -413,7 +447,7 @@ export function DocumentForm({
           columns={columns}
           dataSource={lines}
           pagination={false}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1150 }}
           rowSelection={{
             selectedRowKeys: selectedKeys,
             onChange: setSelectedKeys,

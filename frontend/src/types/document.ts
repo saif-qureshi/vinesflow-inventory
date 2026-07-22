@@ -2,6 +2,8 @@ import type { Address } from "./party";
 
 export type DocumentStatus = "draft" | "sent" | "partially_paid" | "paid" | "void";
 
+export type DiscountType = "amount" | "percent";
+
 export interface DocumentParty {
   id: number;
   name: string;
@@ -14,6 +16,8 @@ export interface DocumentLine {
   description: string;
   quantity: string;
   unit_price: string;
+  discount_type: DiscountType;
+  discount_value: string;
   discount: string;
   tax_rate_id: number | null;
   tax_amount: string;
@@ -69,7 +73,8 @@ export interface DocumentLineInput {
   description: string;
   quantity: number;
   unit_price: number;
-  discount?: number;
+  discount_type?: DiscountType;
+  discount_value?: number;
   tax_rate_id?: number | null;
 }
 

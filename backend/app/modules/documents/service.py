@@ -188,7 +188,11 @@ class DocumentService:
         subtotal = discount_total = tax_total = _ZERO
         for i, line in enumerate(line_inputs):
             base = _q(line.quantity * line.unit_price)
-            discount = _q(line.discount)
+            if line.discount_type == "percent":
+                discount = _q(base * line.discount_value / _HUNDRED)
+            else:
+                discount = _q(line.discount_value)
+            discount = min(discount, base)
             taxable = base - discount
             rate = tax_map[line.tax_rate_id].rate if line.tax_rate_id is not None else _ZERO
             tax = _q(taxable * rate / _HUNDRED)
@@ -198,6 +202,8 @@ class DocumentService:
                     description=line.description,
                     quantity=line.quantity,
                     unit_price=line.unit_price,
+                    discount_type=line.discount_type,
+                    discount_value=line.discount_value,
                     discount=discount,
                     tax_rate_id=line.tax_rate_id,
                     tax_amount=tax,

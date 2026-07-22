@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -57,10 +58,10 @@ def _tax(db, org_id, name="GST 18%"):
     return db.scalar(select(TaxRate).where(TaxRate.org_id == org_id, TaxRate.name == name))
 
 
-def _line(pid, tax_id, qty=2, price=Decimal("100"), discount=Decimal("0")):
+def _line(pid, tax_id, qty=2, price=Decimal("100"), discount=Decimal("0"), discount_type="amount"):
     return DocumentLineInput(
         product_id=pid, description="Widget", quantity=Decimal(qty),
-        unit_price=price, discount=discount, tax_rate_id=tax_id,
+        unit_price=price, discount_type=discount_type, discount_value=discount, tax_rate_id=tax_id,
     )
 
 
@@ -128,6 +129,51 @@ def test_discount_and_exempt_rate(db):
     assert inv.discount_total == Decimal("25")
     assert inv.tax_total == Decimal("0")
     assert inv.total == Decimal("175")
+
+
+def test_percent_discount(db):
+    org_id, loc_id, party_id, pid = _setup(db, track=False)
+    svc = DocumentService(db)
+    tax = _tax(db, org_id)
+    inv = svc.create(
+        org_id,
+        DocumentType.INVOICE,
+        DocumentCreate(
+            party_id=party_id,
+            lines=[_line(pid, tax.id, qty=2, price=Decimal("100"), discount=Decimal("10"), discount_type="percent")],
+        ),
+    )
+    line = inv.lines[0]
+    assert line.discount_type == "percent"
+    assert line.discount_value == Decimal("10")
+    assert line.discount == Decimal("20")
+    assert inv.discount_total == Decimal("20")
+    assert inv.tax_total == Decimal("32.40")
+    assert inv.total == Decimal("212.40")
+
+
+def test_amount_discount_capped_at_base(db):
+    org_id, loc_id, party_id, pid = _setup(db, track=False)
+    svc = DocumentService(db)
+    exempt = _tax(db, org_id, "Exempt")
+    inv = svc.create(
+        org_id,
+        DocumentType.INVOICE,
+        DocumentCreate(
+            party_id=party_id,
+            lines=[_line(pid, exempt.id, qty=1, price=Decimal("100"), discount=Decimal("150"))],
+        ),
+    )
+    assert inv.discount_total == Decimal("100")
+    assert inv.total == Decimal("0")
+
+
+def test_percent_over_100_rejected():
+    with pytest.raises(ValidationError):
+        DocumentLineInput(
+            product_id=1, description="x", quantity=Decimal(1), unit_price=Decimal(1),
+            discount_type="percent", discount_value=Decimal("150"),
+        )
 
 
 def test_create_invoice_unknown_party_raises(db):

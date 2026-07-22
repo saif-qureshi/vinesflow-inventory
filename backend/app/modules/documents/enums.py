@@ -23,6 +23,11 @@ class DocumentStatus(StrEnum):
     VOID = "void"
 
 
+class DiscountType(StrEnum):
+    AMOUNT = "amount"
+    PERCENT = "percent"
+
+
 DEFAULT_PREFIXES: dict[DocumentType, str] = {
     DocumentType.SALES_ORDER: "SO",
     DocumentType.DELIVERY_CHALLAN: "DC",

@@ -3,6 +3,7 @@ export type { ApiEnvelope, ApiError } from "./api";
 export type { AccessToken, Me } from "./auth";
 export type { Category, CategorySummary } from "./category";
 export type {
+  DiscountType,
   DocumentInput,
   DocumentLine,
   DocumentLineInput,
