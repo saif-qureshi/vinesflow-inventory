@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # httpOnly cookie that carries the (opaque) refresh token.
     REFRESH_COOKIE_NAME: str = "vf_refresh"
     REFRESH_COOKIE_PATH: str = "/api/v1/auth"
     REFRESH_COOKIE_SECURE: bool = False
@@ -30,8 +29,11 @@ class Settings(BaseSettings):
 
     GOTENBERG_URL: str = "http://localhost:3009"
 
-    # Media storage: "local" (dev, served from disk) or "s3".
-    STORAGE_BACKEND: str = "local"
+    FBR_BASE_URL: str = "https://gw.fbr.gov.pk"
+    FBR_ENCRYPTION_KEY: str = ""
+    FBR_REFERENCE_TOKEN: str = ""
+
+    STORAGE_BACKEND: str = "local" # local | S3
     MEDIA_LOCAL_DIR: str = "media_storage"
     MEDIA_PUBLIC_URL: str = "http://localhost:8005"
     MAX_UPLOAD_MB: int = 5

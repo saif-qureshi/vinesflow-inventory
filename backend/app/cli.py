@@ -18,10 +18,12 @@ users_app = typer.Typer(no_args_is_help=True, help="Manage users")
 orgs_app = typer.Typer(no_args_is_help=True, help="Manage organizations")
 roles_app = typer.Typer(no_args_is_help=True, help="Inspect roles")
 db_app = typer.Typer(no_args_is_help=True, help="Database tasks")
+fbr_app = typer.Typer(no_args_is_help=True, help="FBR digital invoicing")
 app.add_typer(users_app, name="users")
 app.add_typer(orgs_app, name="orgs")
 app.add_typer(roles_app, name="roles")
 app.add_typer(db_app, name="db")
+app.add_typer(fbr_app, name="fbr")
 
 
 def _get_user(db, email: str) -> User:
@@ -191,6 +193,65 @@ def roles_grant(org: str, role_slug: str, permission_codes: list[str]):
                 role.permissions.append(perm)
         db.commit()
         typer.secho(f"Granted {permission_codes} to {role_slug}", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@fbr_app.command("sync")
+def fbr_sync(
+    environment: str = typer.Option("production", help="sandbox or production"),
+    token: str = typer.Option(None, help="Bearer token (defaults to FBR_REFERENCE_TOKEN)"),
+):
+    from app.core.config import settings
+    from app.modules.fbr.client import FbrClient
+    from app.modules.fbr.enums import FbrEnvironment
+    from app.modules.fbr.sync import FbrReferenceSyncService
+    from app.modules.orgs.models import Organization
+    from app.core.crypto import decrypt_secret
+
+    resolved = token or settings.FBR_REFERENCE_TOKEN
+    db = SessionLocal()
+    try:
+        if not resolved:
+            org = db.scalar(
+                select(Organization).where(Organization.fbr_enabled.is_(True))
+            )
+            if org is not None:
+                resolved = decrypt_secret(
+                    org.fbr_production_token if environment == "production" else org.fbr_sandbox_token
+                )
+        if not resolved:
+            typer.secho(
+                "No token. Set FBR_REFERENCE_TOKEN, pass --token, or enable FBR on an org.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(1)
+
+        client = FbrClient(resolved, FbrEnvironment(environment))
+        typer.echo(f"Syncing FBR reference data ({environment})…")
+        counts = FbrReferenceSyncService(db, client).sync_all(log=lambda m: typer.echo(f"  {m}"))
+        total = sum(counts.values())
+        typer.secho(f"Done. {total} rows across {len(counts)} reference types.", fg=typer.colors.GREEN)
+    finally:
+        db.close()
+
+
+@fbr_app.command("summary")
+def fbr_summary():
+    from sqlalchemy import func
+
+    from app.modules.fbr.models import FbrReferenceData
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(
+            select(FbrReferenceData.type, func.count()).group_by(FbrReferenceData.type)
+        ).all()
+        if not rows:
+            typer.echo("No FBR reference data cached. Run: vineflow fbr sync")
+            return
+        for ref_type, count in sorted(rows):
+            typer.echo(f"  {ref_type:16} {count}")
     finally:
         db.close()
 

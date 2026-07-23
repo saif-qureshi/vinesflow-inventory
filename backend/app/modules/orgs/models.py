@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -41,12 +41,30 @@ class Organization(Base, TimestampMixin):
         Boolean, default=True, server_default="true", nullable=False
     )
 
+    fbr_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    fbr_environment: Mapped[str] = mapped_column(
+        String(12), default="sandbox", server_default="sandbox", nullable=False
+    )
+    fbr_sandbox_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fbr_production_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fbr_province: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     memberships: Mapped[list[Membership]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )
     roles: Mapped[list[Role]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )
+
+    @property
+    def fbr_sandbox_configured(self) -> bool:
+        return bool(self.fbr_sandbox_token)
+
+    @property
+    def fbr_production_configured(self) -> bool:
+        return bool(self.fbr_production_token)
 
 
 class Membership(Base, TimestampMixin):

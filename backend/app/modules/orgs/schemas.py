@@ -39,6 +39,11 @@ class OrgUpdate(BaseModel):
     theme: str | None = Field(default=None, pattern="^(light|dark)$")
     accent_color: str | None = Field(default=None, min_length=4, max_length=9)
     keep_branding: bool | None = None
+    fbr_enabled: bool | None = None
+    fbr_environment: str | None = Field(default=None, pattern="^(sandbox|production)$")
+    fbr_province: str | None = Field(default=None, max_length=50)
+    fbr_sandbox_token: str | None = Field(default=None, max_length=512)
+    fbr_production_token: str | None = Field(default=None, max_length=512)
 
 
 class OrgRead(BaseModel):
@@ -58,6 +63,11 @@ class OrgRead(BaseModel):
     theme: str
     accent_color: str
     keep_branding: bool
+    fbr_enabled: bool
+    fbr_environment: str
+    fbr_province: str | None = None
+    fbr_sandbox_configured: bool = False
+    fbr_production_configured: bool = False
     created_at: datetime
 
 

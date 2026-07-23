@@ -16,6 +16,7 @@ from app.modules.documents.models import (
     SalesOrder,
     TaxRate,
 )
+from app.modules.fbr.models import FbrReferenceData
 from app.modules.inventory.models import Reason, StockLevel, StockMovement
 from app.modules.locations.models import Location
 from app.modules.media.models import MediaAsset

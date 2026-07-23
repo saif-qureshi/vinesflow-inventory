@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Query
+
+from app.api.deps import CurrentMembership
+from app.core.container import Provide
+from app.core.responses import EnvelopeRoute
+from app.modules.fbr.schemas import FbrOption, FbrReferenceRead, FbrSyncSummary
+from app.modules.fbr.service import FbrService
+
+router = APIRouter(prefix="/fbr", tags=["fbr"], route_class=EnvelopeRoute)
+Svc = Depends(Provide(FbrService))
+
+
+@router.get("/provinces", response_model=list[FbrOption])
+def provinces(membership: CurrentMembership, svc: FbrService = Svc):
+    return svc.provinces()
+
+
+@router.get("/reference/{ref_type}", response_model=list[FbrReferenceRead])
+def reference(
+    ref_type: str,
+    membership: CurrentMembership,
+    parent: str | None = None,
+    search: str | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    svc: FbrService = Svc,
+):
+    return svc.reference(ref_type, parent, search, limit)
+
+
+@router.get("/summary", response_model=FbrSyncSummary)
+def summary(membership: CurrentMembership, svc: FbrService = Svc):
+    return FbrSyncSummary(counts=svc.summary())

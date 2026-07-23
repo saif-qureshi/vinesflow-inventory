@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.crypto import encrypt_secret
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.utils import slugify
 from app.modules.orgs.models import Membership, Organization
@@ -18,6 +19,7 @@ from app.modules.uoms.service import UomService
 from app.modules.users.models import User
 
 _BRANDING_FIELDS = {"theme", "accent_color", "keep_branding", "logo_url"}
+_FBR_TOKEN_FIELDS = {"fbr_sandbox_token", "fbr_production_token"}
 
 
 class OrgService:
@@ -109,7 +111,23 @@ class OrgService:
             org.accent_color = payload.accent_color
         if payload.keep_branding is not None:
             org.keep_branding = payload.keep_branding
-        changed = payload.model_fields_set - _BRANDING_FIELDS
+        if payload.fbr_enabled is not None:
+            org.fbr_enabled = payload.fbr_enabled
+        if payload.fbr_environment is not None:
+            org.fbr_environment = payload.fbr_environment
+        if payload.fbr_province is not None:
+            org.fbr_province = payload.fbr_province or None
+        if "fbr_sandbox_token" in payload.model_fields_set:
+            org.fbr_sandbox_token = (
+                encrypt_secret(payload.fbr_sandbox_token) if payload.fbr_sandbox_token else None
+            )
+        if "fbr_production_token" in payload.model_fields_set:
+            org.fbr_production_token = (
+                encrypt_secret(payload.fbr_production_token)
+                if payload.fbr_production_token
+                else None
+            )
+        changed = payload.model_fields_set - _BRANDING_FIELDS - _FBR_TOKEN_FIELDS
         if changed:
             self.activity.record(
                 org.id, "updated", "organization", org.name,
