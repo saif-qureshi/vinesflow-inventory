@@ -9,7 +9,6 @@ from app.modules.documents.models import (
     DeliveryChallan,
     Document,
     DocumentLine,
-    DocumentSequence,
     GoodsReceipt,
     Invoice,
     PurchaseOrder,
@@ -29,5 +28,6 @@ from app.modules.products.models import (
     variant_values,
 )
 from app.modules.rbac.models import Permission, Role, role_permissions
+from app.modules.settings.models import Setting
 from app.modules.uoms.models import Uom
 from app.modules.users.models import User

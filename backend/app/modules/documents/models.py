@@ -44,22 +44,6 @@ class TaxRate(Base, TimestampMixin, AuditMixin):
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
-class DocumentSequence(Base):
-    """Per-org, per-type running number for document references (INV-0001)."""
-
-    __tablename__ = "document_sequences"
-    __table_args__ = (UniqueConstraint("org_id", "type", name="uq_document_sequence_org_type"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    org_id: Mapped[int] = mapped_column(
-        ForeignKey("organizations.id", ondelete="CASCADE"), index=True, nullable=False
-    )
-    type: Mapped[str] = mapped_column(String(30), nullable=False)
-    prefix: Mapped[str] = mapped_column(String(12), nullable=False)
-    next_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    padding: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
-
-
 class Document(Base, TimestampMixin, AuditMixin):
     """Shared header for every sales/purchase document. Single-table polymorphic:
     the `type` column discriminates Invoice / SalesOrder / Bill / ... Per-type

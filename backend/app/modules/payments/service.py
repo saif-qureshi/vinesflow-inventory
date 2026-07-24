@@ -18,7 +18,7 @@ from app.modules.documents.enums import (
     PaymentStatus,
 )
 from app.modules.documents.models import Document
-from app.modules.documents.numbering import next_number
+from app.modules.documents.numbering import assign_number, numbering_format
 from app.modules.documents.service import SALES_TYPES, DocumentService
 from app.modules.parties.models import Party
 from app.modules.payments.models import Payment, PaymentAllocation
@@ -102,12 +102,12 @@ class PaymentService:
             org_id, direction, party.id, payload.allocations, amount
         )
         document_date = payload.document_date or date.today()
+        prefix, padding = numbering_format(
+            self.db, org_id, f"payment_{direction}", PAYMENT_PREFIXES[direction]
+        )
         payment = Payment(
             org_id=org_id,
             direction=direction,
-            number=next_number(
-                self.db, org_id, f"payment_{direction}", PAYMENT_PREFIXES[direction]
-            ),
             status=PaymentStatus.DRAFT,
             party_id=party.id,
             party_name=party.name,
@@ -124,8 +124,10 @@ class PaymentService:
             PaymentAllocation(document_id=doc.id, document_number=doc.number, amount=alloc)
             for doc, alloc in resolved
         ]
-        self.db.add(payment)
-        self.db.flush()
+        assign_number(
+            self.db, payment, Payment.number, prefix, padding,
+            Payment.org_id == org_id, Payment.direction == direction,
+        )
         self.activity.record(
             org_id, "created", f"payment_{direction}", payment.number, entity_id=payment.id
         )

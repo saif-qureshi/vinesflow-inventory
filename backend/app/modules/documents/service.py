@@ -22,14 +22,13 @@ from app.modules.documents.models import (
     DeliveryChallan,
     Document,
     DocumentLine,
-    DocumentSequence,
     GoodsReceipt,
     Invoice,
     PurchaseOrder,
     SalesOrder,
     TaxRate,
 )
-from app.modules.documents.numbering import next_number
+from app.modules.documents.numbering import assign_number, numbering_format
 from app.modules.documents.schemas import (
     DocumentCreate,
     DocumentLineInput,
@@ -99,17 +98,6 @@ class DocumentService:
             TaxRate(org_id=org_id, name=name, rate=rate, is_system=True)
             for name, rate in DEFAULT_TAX_RATES
             if name not in existing
-        )
-        self.db.flush()
-
-    def seed_sequences(self, org_id: int) -> None:
-        existing = set(
-            self.db.scalars(select(DocumentSequence.type).where(DocumentSequence.org_id == org_id))
-        )
-        self.db.add_all(
-            DocumentSequence(org_id=org_id, type=doc_type, prefix=prefix)
-            for doc_type, prefix in DEFAULT_PREFIXES.items()
-            if doc_type not in existing
         )
         self.db.flush()
 
@@ -285,9 +273,9 @@ class DocumentService:
         doc_cls = DOCUMENT_CLASSES[doc_type]
         party = self._get_party(org_id, payload.party_id, doc_type)
         issue_date = payload.issue_date or date.today()
+        prefix, padding = numbering_format(self.db, org_id, str(doc_type), DEFAULT_PREFIXES[doc_type])
         doc = doc_cls(
             org_id=org_id,
-            number=next_number(self.db, org_id, doc_type, DEFAULT_PREFIXES[doc_type]),
             status=DocumentStatus.DRAFT,
             party_id=party.id,
             warehouse_id=payload.warehouse_id,
@@ -304,8 +292,10 @@ class DocumentService:
         lines, subtotal, discount_total, tax_total = self._build_lines(org_id, payload.lines)
         doc.lines = lines
         self._apply_totals(doc, subtotal, discount_total, tax_total)
-        self.db.add(doc)
-        self.db.flush()
+        assign_number(
+            self.db, doc, Document.number, prefix, padding,
+            Document.org_id == org_id, Document.type == doc_type,
+        )
         self.activity.record(org_id, "created", doc_type, doc.number, entity_id=doc.id)
         self.db.commit()
         self.db.refresh(doc)
@@ -412,10 +402,12 @@ class DocumentService:
             for line in source.lines
         ]
         lines, subtotal, discount_total, tax_total = self._build_lines(org_id, line_inputs)
+        prefix, padding = numbering_format(
+            self.db, org_id, str(target_type), DEFAULT_PREFIXES[target_type]
+        )
 
         target = DOCUMENT_CLASSES[target_type](
             org_id=org_id,
-            number=next_number(self.db, org_id, target_type, DEFAULT_PREFIXES[target_type]),
             status=DocumentStatus.DRAFT,
             party_id=source.party_id,
             warehouse_id=source.warehouse_id,
@@ -432,8 +424,10 @@ class DocumentService:
         )
         target.lines = lines
         self._apply_totals(target, subtotal, discount_total, tax_total)
-        self.db.add(target)
-        self.db.flush()
+        assign_number(
+            self.db, target, Document.number, prefix, padding,
+            Document.org_id == org_id, Document.type == target_type,
+        )
 
         if source_type in CLOSED_ON_CONVERT:
             source.status = DocumentStatus.CLOSED

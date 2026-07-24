@@ -23,6 +23,7 @@ from app.modules.locations.models import Location
 from app.modules.orgs.service import OrgService
 from app.modules.parties.models import Party
 from app.modules.products.models import Product
+from app.modules.settings.service import SettingsService
 from app.modules.users.models import User
 
 
@@ -111,6 +112,19 @@ def test_sequences_are_per_type(db):
     )
     assert inv.number == "INV-0001"
     assert bill.number == "BILL-0001"
+
+
+def test_numbering_format_from_settings(db):
+    org_id, loc_id, party_id, pid = _setup(db)
+    tax = _tax(db, org_id)
+    SettingsService(db).set(
+        org_id, "numbering", str(DocumentType.INVOICE), {"prefix": "SALE", "padding": 6}
+    )
+    svc = DocumentService(db)
+    a = _invoice(svc, org_id, party_id, pid, tax.id)
+    b = _invoice(svc, org_id, party_id, pid, tax.id)
+    assert a.number == "SALE-000001"
+    assert b.number == "SALE-000002"
 
 
 def test_discount_and_exempt_rate(db):

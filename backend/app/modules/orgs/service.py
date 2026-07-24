@@ -15,6 +15,7 @@ from app.modules.inventory.service import InventoryService
 from app.modules.locations.service import LocationService
 from app.modules.rbac.models import Role
 from app.modules.rbac.service import RbacService
+from app.modules.settings.service import SettingsService
 from app.modules.uoms.service import UomService
 from app.modules.users.models import User
 
@@ -57,9 +58,8 @@ class OrgService:
         UomService(self.db).seed_defaults(org.id)
         LocationService(self.db).seed_default(org.id)
         InventoryService(self.db).seed_reasons(org.id)
-        document_service = DocumentService(self.db)
-        document_service.seed_tax_rates(org.id)
-        document_service.seed_sequences(org.id)
+        DocumentService(self.db).seed_tax_rates(org.id)
+        SettingsService(self.db).seed_numbering(org.id)
         self.db.flush()
         return org
 
