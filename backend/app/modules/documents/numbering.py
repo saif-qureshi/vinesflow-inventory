@@ -8,13 +8,18 @@ from app.core.exceptions import ConflictError
 from app.modules.settings.service import SettingsService
 
 _MAX_RETRIES = 6
+_DEFAULT_START = "0001"
 
 
-def numbering_format(db: Session, org_id: int, key: str, default_prefix: str) -> tuple[str, int]:
+def numbering_format(db: Session, org_id: int, key: str, default_prefix: str) -> tuple[str, str, str]:
     fmt = SettingsService(db).get(org_id, "numbering", key)
     if isinstance(fmt, dict):
-        return str(fmt.get("prefix") or default_prefix), int(fmt.get("padding") or 4)
-    return default_prefix, 4
+        return (
+            str(fmt.get("prefix") or default_prefix),
+            str(fmt.get("start") or _DEFAULT_START),
+            str(fmt.get("restart") or "none"),
+        )
+    return default_prefix, _DEFAULT_START, "none"
 
 
 def _peak(db: Session, number_col: InstrumentedAttribute, *where: ColumnElement) -> int:
@@ -27,9 +32,25 @@ def _peak(db: Session, number_col: InstrumentedAttribute, *where: ColumnElement)
 
 
 def assign_number(
-    db: Session, entity, number_col: InstrumentedAttribute, prefix: str, padding: int, *where: ColumnElement
+    db: Session,
+    entity,
+    number_col: InstrumentedAttribute,
+    prefix: str,
+    start: str,
+    restart: str,
+    year: int,
+    *where: ColumnElement,
 ) -> None:
-    entity.number = f"{prefix}-{_peak(db, number_col, *where) + 1:0{padding}d}"
+    width = len(start)
+    start_value = int(start)
+    body = f"{prefix}{year}-" if restart == "yearly" else prefix
+    scope = (number_col.like(f"{body}%"),) if restart == "yearly" else ()
+
+    def _make() -> str:
+        seq = max(_peak(db, number_col, *where, *scope), start_value - 1) + 1
+        return f"{body}{seq:0{width}d}"
+
+    entity.number = _make()
     db.add(entity)
     for _ in range(_MAX_RETRIES):
         savepoint = db.begin_nested()
@@ -39,5 +60,5 @@ def assign_number(
             return
         except IntegrityError:
             savepoint.rollback()
-            entity.number = f"{prefix}-{_peak(db, number_col, *where) + 1:0{padding}d}"
+            entity.number = _make()
     raise ConflictError("Could not assign a document number")

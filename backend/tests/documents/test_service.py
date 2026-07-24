@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -118,13 +118,39 @@ def test_numbering_format_from_settings(db):
     org_id, loc_id, party_id, pid = _setup(db)
     tax = _tax(db, org_id)
     SettingsService(db).set(
-        org_id, "numbering", str(DocumentType.INVOICE), {"prefix": "SALE", "padding": 6}
+        org_id, "numbering", str(DocumentType.INVOICE), {"prefix": "SALE/", "start": "000100"}
     )
     svc = DocumentService(db)
     a = _invoice(svc, org_id, party_id, pid, tax.id)
     b = _invoice(svc, org_id, party_id, pid, tax.id)
-    assert a.number == "SALE-000001"
-    assert b.number == "SALE-000002"
+    assert a.number == "SALE/000100"
+    assert b.number == "SALE/000101"
+
+
+def test_numbering_yearly_restart(db):
+    org_id, loc_id, party_id, pid = _setup(db)
+    tax = _tax(db, org_id)
+    SettingsService(db).set(
+        org_id,
+        "numbering",
+        str(DocumentType.INVOICE),
+        {"prefix": "INV-", "start": "0001", "restart": "yearly"},
+    )
+    svc = DocumentService(db)
+
+    def make(issue):
+        return svc.create(
+            org_id,
+            DocumentType.INVOICE,
+            DocumentCreate(party_id=party_id, issue_date=issue, lines=[_line(pid, tax.id)]),
+        )
+
+    a = make(date(2026, 5, 1))
+    b = make(date(2026, 9, 1))
+    c = make(date(2027, 1, 3))
+    assert a.number == "INV-2026-0001"
+    assert b.number == "INV-2026-0002"
+    assert c.number == "INV-2027-0001"
 
 
 def test_discount_and_exempt_rate(db):

@@ -21,6 +21,11 @@ export function useUpdateOrg() {
       theme?: "light" | "dark";
       accent_color?: string;
       keep_branding?: boolean;
+      fbr_enabled?: boolean;
+      fbr_environment?: "sandbox" | "production";
+      fbr_province?: string;
+      fbr_sandbox_token?: string;
+      fbr_production_token?: string;
     }) => api.patch("/orgs/current", vars),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });

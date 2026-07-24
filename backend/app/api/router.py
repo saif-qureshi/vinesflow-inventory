@@ -13,6 +13,7 @@ from app.modules.parties.router import router as parties_router
 from app.modules.payments.router import router as payments_router
 from app.modules.products.router import router as products_router
 from app.modules.rbac.router import router as rbac_router
+from app.modules.settings.router import router as settings_router
 from app.modules.uoms.router import router as uoms_router
 from app.modules.users.router import router as users_router
 
@@ -32,3 +33,4 @@ api_router.include_router(activities_router)
 api_router.include_router(categories_router)
 api_router.include_router(uoms_router)
 api_router.include_router(media_router)
+api_router.include_router(settings_router)

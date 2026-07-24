@@ -53,19 +53,19 @@ class PaymentMethod(StrEnum):
 
 
 PAYMENT_PREFIXES: dict[PaymentDirection, str] = {
-    PaymentDirection.RECEIVED: "PAY",
-    PaymentDirection.MADE: "PMT",
+    PaymentDirection.RECEIVED: "PAY-",
+    PaymentDirection.MADE: "PMT-",
 }
 
 
 DEFAULT_PREFIXES: dict[DocumentType, str] = {
-    DocumentType.SALES_ORDER: "SO",
-    DocumentType.DELIVERY_CHALLAN: "DC",
-    DocumentType.INVOICE: "INV",
-    DocumentType.SALES_RECEIPT: "SR",
-    DocumentType.CREDIT_NOTE: "CN",
-    DocumentType.PURCHASE_ORDER: "PO",
-    DocumentType.GOODS_RECEIPT: "GRN",
-    DocumentType.BILL: "BILL",
-    DocumentType.VENDOR_CREDIT: "VC",
+    DocumentType.SALES_ORDER: "SO-",
+    DocumentType.DELIVERY_CHALLAN: "DC-",
+    DocumentType.INVOICE: "INV-",
+    DocumentType.SALES_RECEIPT: "SR-",
+    DocumentType.CREDIT_NOTE: "CN-",
+    DocumentType.PURCHASE_ORDER: "PO-",
+    DocumentType.GOODS_RECEIPT: "GRN-",
+    DocumentType.BILL: "BILL-",
+    DocumentType.VENDOR_CREDIT: "VC-",
 }

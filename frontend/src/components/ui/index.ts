@@ -13,6 +13,7 @@ export { StatCard } from "./StatCard";
 export { FormModal } from "./FormModal";
 
 export {
+  Alert,
   App,
   Avatar,
   Card,
@@ -21,16 +22,20 @@ export {
   Divider,
   Dropdown,
   Form,
+  InputNumber,
   Layout,
   Menu,
   Modal,
   Popconfirm,
+  Radio,
   Row,
   Select,
   Space,
   Spin,
   Statistic,
+  Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";

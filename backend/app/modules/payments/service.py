@@ -102,7 +102,7 @@ class PaymentService:
             org_id, direction, party.id, payload.allocations, amount
         )
         document_date = payload.document_date or date.today()
-        prefix, padding = numbering_format(
+        prefix, start, restart = numbering_format(
             self.db, org_id, f"payment_{direction}", PAYMENT_PREFIXES[direction]
         )
         payment = Payment(
@@ -125,7 +125,7 @@ class PaymentService:
             for doc, alloc in resolved
         ]
         assign_number(
-            self.db, payment, Payment.number, prefix, padding,
+            self.db, payment, Payment.number, prefix, start, restart, document_date.year,
             Payment.org_id == org_id, Payment.direction == direction,
         )
         self.activity.record(

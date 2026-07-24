@@ -17,6 +17,11 @@ export interface Organization {
   theme: "light" | "dark";
   accent_color: string;
   keep_branding: boolean;
+  fbr_enabled: boolean;
+  fbr_environment: "sandbox" | "production";
+  fbr_province: string | null;
+  fbr_sandbox_configured: boolean;
+  fbr_production_configured: boolean;
   created_at: string;
 }
 

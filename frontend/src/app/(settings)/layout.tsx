@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { Button, Divider, Input, Layout, Menu, Typography, type MenuProps } from "antd";
-import { Boxes, Building2, ChevronLeft, Search, ShieldCheck, UserRound } from "lucide-react";
+import { Boxes, Building2, ChevronLeft, Search, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -36,6 +36,7 @@ const SECTIONS: { heading: string; groups: Group[] }[] = [
         children: [
           { key: "/settings/organization/profile", label: "Profile" },
           { key: "/settings/organization/branding", label: "Branding" },
+          { key: "/settings/organization/fbr", label: "FBR e-Invoicing" },
           { key: "/settings/organization/subscription", label: "Subscription" },
         ],
       },
@@ -46,6 +47,14 @@ const SECTIONS: { heading: string; groups: Group[] }[] = [
         children: [
           { key: "/settings/users", label: "Users", permission: "users:read" },
           { key: "/settings/roles", label: "Roles", permission: "roles:read" },
+        ],
+      },
+      {
+        key: "customization",
+        label: "Customization",
+        icon: <SlidersHorizontal size={16} />,
+        children: [
+          { key: "/settings/customization/transaction-numbers", label: "Transaction Number Series" },
         ],
       },
     ],

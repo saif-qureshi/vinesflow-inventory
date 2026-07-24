@@ -273,7 +273,9 @@ class DocumentService:
         doc_cls = DOCUMENT_CLASSES[doc_type]
         party = self._get_party(org_id, payload.party_id, doc_type)
         issue_date = payload.issue_date or date.today()
-        prefix, padding = numbering_format(self.db, org_id, str(doc_type), DEFAULT_PREFIXES[doc_type])
+        prefix, start, restart = numbering_format(
+            self.db, org_id, str(doc_type), DEFAULT_PREFIXES[doc_type]
+        )
         doc = doc_cls(
             org_id=org_id,
             status=DocumentStatus.DRAFT,
@@ -293,7 +295,7 @@ class DocumentService:
         doc.lines = lines
         self._apply_totals(doc, subtotal, discount_total, tax_total)
         assign_number(
-            self.db, doc, Document.number, prefix, padding,
+            self.db, doc, Document.number, prefix, start, restart, issue_date.year,
             Document.org_id == org_id, Document.type == doc_type,
         )
         self.activity.record(org_id, "created", doc_type, doc.number, entity_id=doc.id)
@@ -402,7 +404,7 @@ class DocumentService:
             for line in source.lines
         ]
         lines, subtotal, discount_total, tax_total = self._build_lines(org_id, line_inputs)
-        prefix, padding = numbering_format(
+        prefix, start, restart = numbering_format(
             self.db, org_id, str(target_type), DEFAULT_PREFIXES[target_type]
         )
 
@@ -425,7 +427,7 @@ class DocumentService:
         target.lines = lines
         self._apply_totals(target, subtotal, discount_total, tax_total)
         assign_number(
-            self.db, target, Document.number, prefix, padding,
+            self.db, target, Document.number, prefix, start, restart, date.today().year,
             Document.org_id == org_id, Document.type == target_type,
         )
 
